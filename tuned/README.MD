@@ -1,6 +1,6 @@
-### Quick Install
+## Quick Install
 
-## Virtualized Server
+### Virtualized Server
 ```
 # Execute as root
 target=/usr/lib/tuned/mongodb-wt-virtual
