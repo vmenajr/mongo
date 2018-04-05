@@ -1,10 +1,16 @@
 ## Quick Install
 
-### Virtualized Server
+The installation script pulls down the profile requested (virtual or physical) then activates it
+
+### General
 ```
-# Execute as root
-target=/usr/lib/tuned/mongodb-wt-virtual
-mkdir ${target} && cd ${target} && curl -LO https://raw.githubusercontent.com/vmenajr/mongo/master/tuned/mongodb-wt-virtual/tuned.conf
-tuned-adm profile mongodb-wt-virtual
-tuned-adm active
+cd /tmp
+curl -LO https://raw.githubusercontent.com/vmenajr/mongo/master/tuned/configure-tuned.sh
+chmod +x /tmp/configure-tuned.sh
 ```
+
+### Activate profile (Use the appropriate profile name for your system)
+```
+sudo /tmp/configure-tuned.sh mongodb-wt-virtual
+```
+
