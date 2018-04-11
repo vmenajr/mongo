@@ -1,3 +1,19 @@
+function getRandomInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+sh.chunkDataSize = function(ns, key, kmin, kmax, est) {
+    return sh._adminCommand(
+        { dataSize: ns, keyPattern: key, min: kmin, max: kmax, estimate: est }
+    );
+}
+
+sh.mergeChunks = function(ns, first, next) {
+    return sh._adminCommand(
+        { mergeChunks: ns, bounds: [ first, next ] }
+    );
+}
+
 function sendtoscreen(obj) {
 	printjson(obj.toArray())
 }
@@ -192,4 +208,278 @@ sh.hot_shard = function() {
 		])
 	)
 }
+
+//function printShardingStatus(configDB, verbose) {
+    //// configDB is a DB object that contains the sharding metadata of interest.
+    //// Defaults to the db named "config" on the current connection.
+    //if (configDB === undefined)
+        //configDB = db.getSisterDB('config');
+
+    //var version = configDB.getCollection("version").findOne();
+    //if (version == null) {
+        //print(
+            //"printShardingStatus: this db does not have sharding enabled. be sure you are connecting to a mongos from the shell and not to a mongod.");
+        //return;
+    //}
+
+    //var raw = "";
+    //var output = function(indent, s) {
+        //raw += sh._shardingStatusStr(indent, s);
+    //};
+    //output(0, "--- Sharding Status --- ");
+    //output(1, "sharding version: " + tojson(configDB.getCollection("version").findOne()));
+
+    //output(1, "shards:");
+    //configDB.shards.find().sort({_id: 1}).forEach(function(z) {
+        //output(2, tojsononeline(z));
+    //});
+
+    //// (most recently) active mongoses
+    //var mongosActiveThresholdMs = 60000;
+    //var mostRecentMongos = configDB.mongos.find().sort({ping: -1}).limit(1);
+    //var mostRecentMongosTime = null;
+    //var mongosAdjective = "most recently active";
+    //if (mostRecentMongos.hasNext()) {
+        //mostRecentMongosTime = mostRecentMongos.next().ping;
+        //// Mongoses older than the threshold are the most recent, but cannot be
+        //// considered "active" mongoses. (This is more likely to be an old(er)
+        //// configdb dump, or all the mongoses have been stopped.)
+        //if (mostRecentMongosTime.getTime() >= Date.now() - mongosActiveThresholdMs) {
+            //mongosAdjective = "active";
+        //}
+    //}
+
+    //output(1, mongosAdjective + " mongoses:");
+    //if (mostRecentMongosTime === null) {
+        //output(2, "none");
+    //} else {
+        //var recentMongosQuery = {
+            //ping: {
+                //$gt: (function() {
+                    //var d = mostRecentMongosTime;
+                    //d.setTime(d.getTime() - mongosActiveThresholdMs);
+                    //return d;
+                //})()
+            //}
+        //};
+
+        //if (verbose) {
+            //configDB.mongos.find(recentMongosQuery).sort({ping: -1}).forEach(function(z) {
+                //output(2, tojsononeline(z));
+            //});
+        //} else {
+            //configDB.mongos
+                //.aggregate([
+                    //{$match: recentMongosQuery},
+                    //{$group: {_id: "$mongoVersion", num: {$sum: 1}}},
+                    //{$sort: {num: -1}}
+                //])
+                //.forEach(function(z) {
+                    //output(2, tojson(z._id) + " : " + z.num);
+                //});
+        //}
+    //}
+
+    //output(1, "autosplit:");
+
+    //// Is autosplit currently enabled
+    //output(2, "Currently enabled: " + (sh.getShouldAutoSplit(configDB) ? "yes" : "no"));
+
+    //output(1, "balancer:");
+
+    //// Is the balancer currently enabled
+    //output(2, "Currently enabled:  " + (sh.getBalancerState(configDB) ? "yes" : "no"));
+
+    //// Is the balancer currently active
+    //var balancerRunning = "unknown";
+    //var balancerStatus = configDB.adminCommand({balancerStatus: 1});
+    //if (balancerStatus.code != ErrorCodes.CommandNotFound) {
+        //balancerRunning = balancerStatus.inBalancerRound ? "yes" : "no";
+    //}
+    //output(2, "Currently running:  " + balancerRunning);
+
+    //// Output the balancer window
+    //var balSettings = sh.getBalancerWindow(configDB);
+    //if (balSettings) {
+        //output(3,
+               //"Balancer active window is set between " + balSettings.start + " and " +
+                   //balSettings.stop + " server local time");
+    //}
+
+    //// Output the list of active migrations
+    //var activeMigrations = sh.getActiveMigrations(configDB);
+    //if (activeMigrations.length > 0) {
+        //output(2, "Collections with active migrations: ");
+        //activeMigrations.forEach(function(migration) {
+            //output(3, migration._id + " started at " + migration.when);
+        //});
+    //}
+
+    //// Actionlog and version checking only works on 2.7 and greater
+    //var versionHasActionlog = false;
+    //var metaDataVersion = configDB.getCollection("version").findOne().currentVersion;
+    //if (metaDataVersion > 5) {
+        //versionHasActionlog = true;
+    //}
+    //if (metaDataVersion == 5) {
+        //var verArray = db.serverBuildInfo().versionArray;
+        //if (verArray[0] == 2 && verArray[1] > 6) {
+            //versionHasActionlog = true;
+        //}
+    //}
+
+    //if (versionHasActionlog) {
+        //// Review config.actionlog for errors
+        //var actionReport = sh.getRecentFailedRounds(configDB);
+        //// Always print the number of failed rounds
+        //output(2, "Failed balancer rounds in last 5 attempts:  " + actionReport.count);
+
+        //// Only print the errors if there are any
+        //if (actionReport.count > 0) {
+            //output(2, "Last reported error:  " + actionReport.lastErr);
+            //output(2, "Time of Reported error:  " + actionReport.lastTime);
+        //}
+
+        //output(2, "Migration Results for the last 24 hours: ");
+        //var migrations = sh.getRecentMigrations(configDB);
+        //if (migrations.length > 0) {
+            //migrations.forEach(function(x) {
+                //if (x._id === "Success") {
+                    //output(3, x.count + " : " + x._id);
+                //} else {
+                    //output(3,
+                           //x.count + " : Failed with error '" + x._id + "', from " + x.from +
+                               //" to " + x.to);
+                //}
+            //});
+        //} else {
+            //output(3, "No recent migrations");
+        //}
+    //}
+
+    //output(1, "databases:");
+
+    //var databases = configDB.databases.find().sort({name: 1}).toArray();
+
+    //// Special case the config db, since it doesn't have a record in config.databases.
+    //databases.push({"_id": "config", "primary": "config", "partitioned": true});
+    //databases.sort(function(a, b) {
+        //return a["_id"] > b["_id"];
+    //});
+
+    //databases.forEach(function(db) {
+        //var truthy = function(value) {
+            //return !!value;
+        //};
+        //var nonBooleanNote = function(name, value) {
+            //// If the given value is not a boolean, return a string of the
+            //// form " (<name>: <value>)", where <value> is converted to JSON.
+            //var t = typeof(value);
+            //var s = "";
+            //if (t != "boolean" && t != "undefined") {
+                //s = " (" + name + ": " + tojson(value) + ")";
+            //}
+            //return s;
+        //};
+
+        //output(2, tojsononeline(db, "", true));
+
+        //if (db.partitioned) {
+            //configDB.collections.find({_id: new RegExp("^" + RegExp.escape(db._id) + "\\.")})
+                //.sort({_id: 1})
+                //.forEach(function(coll) {
+                    //if (!coll.dropped) {
+                        //output(3, coll._id);
+                        //output(4, "shard key: " + tojson(coll.key));
+                        //output(4,
+                               //"unique: " + truthy(coll.unique) +
+                                   //nonBooleanNote("unique", coll.unique));
+                        //output(4,
+                               //"balancing: " + !truthy(coll.noBalance) +
+                                   //nonBooleanNote("noBalance", coll.noBalance));
+                        //output(4, "chunks:");
+
+                        //res = configDB.chunks
+                                  //.aggregate({$match: {ns: coll._id}},
+                                             //{$group: {_id: "$shard", cnt: {$sum: 1}}},
+                                             //{$project: {_id: 0, shard: "$_id", nChunks: "$cnt"}},
+                                             //{$sort: {shard: 1}})
+                                  //.toArray();
+                        //var totalChunks = 0;
+                        //res.forEach(function(z) {
+                            //totalChunks += z.nChunks;
+                            //output(5, z.shard + "\t" + z.nChunks);
+                        //});
+
+                        //if (totalChunks < 20 || verbose) {
+                            //configDB.chunks.find({"ns": coll._id})
+                                //.sort({min: 1})
+                                //.forEach(function(chunk) {
+                                    //output(4,
+                                           //tojson(chunk.min) + " -->> " + tojson(chunk.max) +
+                                               //" on : " + chunk.shard + " " +
+                                               //tojson(chunk.lastmod) + " " +
+                                               //(chunk.jumbo ? "jumbo " : ""));
+                                //});
+                        //} else {
+                            //output(
+                                //4,
+                                //"too many chunks to print, use verbose if you want to force print");
+                        //}
+
+                        //configDB.tags.find({ns: coll._id}).sort({min: 1}).forEach(function(tag) {
+                            //output(4,
+                                   //" tag: " + tag.tag + "  " + tojson(tag.min) + " -->> " +
+                                       //tojson(tag.max));
+                        //});
+                    //}
+                //});
+        //}
+    //});
+
+    //print(raw);
+//}
+
+    //if (config === undefined)
+        //config = db.getSisterDB('config');
+
+
+//sh.rebalance = function(ns) {
+    //// configDB is a DB object that contains the sharding metadata of interest.
+    //// Defaults to the db named "config" on the current connection.
+    //if (configDB === undefined)
+        //configDB = db.getSiblingDB('config');
+
+
+    //var saveDB = db;
+    //output(1, "databases:");
+    //configDB.databases.find().sort({name: 1}).forEach(function(db) {
+        //output(2, tojson(db, "", true));
+
+    //var shard = undefined;
+    //var prevChunk = undefined;
+    //var coll = configDB.collections.findOne({_id: ns});
+    //var runningSize = 0;
+
+    //configDB.chunks.find({"ns": coll._id}).sort({shard:1, min: 1}).forEach(function(chunk) {
+        //var ds = sh.chunkDataSize(coll._id, coll.key, chunk.min, chunk.max, true);
+        //runningSize += ds
+
+
+        //var mydb = shards[chunk.shard].getDB(db._id);
+        //var out = mydb.runCommand({
+            //dataSize: coll._id,
+            //keyPattern: coll.key,
+            //min: chunk.min,
+            //max: chunk.max
+        //});
+        //delete out.millis;
+        //delete out.ok;
+
+        //output(4,
+            //tojson(chunk.min) + " -->> " + tojson(chunk.max) + " on : " +
+            //chunk.shard + " " + tojson(out));
+
+    //});
+
 
