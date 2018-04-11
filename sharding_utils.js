@@ -177,4 +177,19 @@ sh.rates_and_volumes = function() {
 	)
 }
 
+sh.hot_shard = function() {
+	sendtoscreen(
+		configDB().changelog.aggregate([
+			{$group: {
+				_id:{ "ns":"$ns","server":"$server"},
+				multiSplits:{$sum:{$cond:[{$eq:["$what","multi-split"]},1,0]}},
+				splits:{$sum:{$cond:[{$eq:["$what","split"]},1,0]}},
+				migrationAttempts:{$sum:{$cond:[{$eq:["$what","moveChunk.from"]},1,0]}},
+				migrationFailures:{$sum:{$cond:[ {$eq:["$details.note","aborted" ]} ,1,0]}},
+				migrations:{$sum:{$cond:[{$eq:["$what","moveChunk.commit"]},1,0]}}
+			} },
+			{ $sort: { _id:1, multiSplits: -1, splits: -1 } }
+		])
+	)
+}
 
