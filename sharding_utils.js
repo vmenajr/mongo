@@ -9,17 +9,17 @@ function configDB() {
 oldhelp=sh.help
 sh.help = function() {
 	oldhelp()
-	print("\tsh.op_count()")
-	print("\tsh.ops_by_hour()")
-	print("\tsh.ops_by_hour_not_aborted()")
-	print("\tsh.ops_by_hour_not_aborted_condensed()")
-	print("\tsh.ops_by_ns()")
-	print("\tsh.splits_and_migrations()")
-	print("\tsh.errors_per_phase()")
-	print("\tsh.covered_period()")
-	print("\tsh.first_last_migration()")
-	print("\tsh.shards_by_donor()")
-	print("\tsh.rates_and_volumes()")
+	print("\tsh.op_count()                            Number of operations")
+	print("\tsh.ops_by_hour()                         Operations by hour")
+	print("\tsh.ops_by_hour_not_aborted()             Unaborted operations by hour")
+	print("\tsh.ops_by_hour_not_aborted_condensed()   Condensed view")
+	print("\tsh.ops_by_ns()                           Operations by namespace")
+	print("\tsh.splits_and_migrations()               Operations by namespace")
+	print("\tsh.errors_by_phase()                     Errors by phase")
+	print("\tsh.covered_period()                      Period covered by changelog")
+	print("\tsh.first_last_migration()                First and last successful migrations")
+	print("\tsh.moves_by_donor()                      Shard moves sorted by donor")
+	print("\tsh.rates_and_volumes()                   Successful migration rates and volumes")
 }
 
 sh.op_count = function() {
@@ -85,7 +85,7 @@ sh.splits_and_migrations = function() {
 	)
 }
 
-sh.errors_per_phase = function() {
+sh.errors_by_phase = function() {
 	sendtoscreen(
 		configDB().changelog.aggregate([
 			{ $match : { "details.note" : 'aborted' } },
@@ -105,7 +105,7 @@ sh.first_last_migration = function() {
 	sendtoscreen( configDB().changelog.find({what:"moveChunk.commit"},{_id:0, time:1}).sort({$natural:-1}).limit(1) )
 }
 
-sh.shards_by_donor = function() {
+sh.moves_by_donor = function() {
 	sendtoscreen(
 		configDB().changelog.aggregate([
 			{ $match: { "what" : "moveChunk.start" }},
