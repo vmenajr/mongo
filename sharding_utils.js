@@ -1,30 +1,62 @@
+sh.debugMode = true;
+sh.oldhelp=sh.help
+sh.configDB = db.getSiblingDB("config");
+
+
 function getRandomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-sh.chunkDataSize = function(ns, key, kmin, kmax, est) {
-    return sh._adminCommand(
-        { dataSize: ns, keyPattern: key, min: kmin, max: kmax, estimate: est }
-    );
+sh.chunkSize = function() {
+    var rc = this.configDB.settings.findOne({_id: "chunksize"});
+    if (!rc) rc = 64;
+    rc = rc*1024*1024;
+    print("Chunk Size: ", sh._dataFormat(rc))
+    return rc;
 }
 
-sh.mergeChunks = function(ns, first, next) {
-    return sh._adminCommand(
-        { mergeChunks: ns, bounds: [ first, next ] }
-    );
+sh.fakeChunkSizeDividedByTwo = sh.chunkSize() / 2;
+
+sh.chunkDataSize = function(ns, key, kmin, kmax, est) {
+    var rc = undefined;
+    if ( this.debugMode === true ) {
+        rc = { ok : 1, size: getRandomInt(0, this.fakeChunkSizeDividedByTwo) };
+    }
+    else {
+        rc = sh._adminCommand(
+            { dataSize: ns, keyPattern: key, min: kmin, max: kmax, estimate: est }
+        );
+    }
+    return rc;
+}
+
+sh.mergeChunks = function(ns, lowerBound, upperBound) {
+    var rc = undefined;
+    if ( this.debugMode === true ) {
+        rc = { ok : getRandomInt(0,1), msg : "Debug Mode" }
+    }
+    else {
+        rc = this._adminCommand( { mergeChunks: ns, bounds: [ lowerBound, upperBound ] });
+    }
+    print("Merge Attempt: ", tojson(lowerBound), ", ", tojson(upperBound), " = ", rc.ok);
+    return rc;
+}
+
+sh._mergeChunks = function(firstChunk, lastChunk) {
+    var rc = { ok : 1 };
+    if (firstChunk._id !== lastChunk._id) {
+        rc = this.mergeChunks(firstChunk.ns, firstChunk.min, lastChunk.max);
+    }
+    if (rc.ok !== 1) printjson(rc);
+    return rc;
 }
 
 function sendtoscreen(obj) {
 	printjson(obj.toArray())
 }
 
-function configDB() {
-	return db.getSiblingDB("config");
-}
-
-oldhelp=sh.help
 sh.help = function() {
-	oldhelp()
+	this.oldhelp()
 	print("\tsh.op_count()                            Number of operations")
 	print("\tsh.ops_by_hour()                         Operations by hour")
 	print("\tsh.ops_by_hour_not_aborted()             Unaborted operations by hour")
@@ -40,7 +72,7 @@ sh.help = function() {
 
 sh.op_count = function() {
 	sendtoscreen(
-		configDB().changelog.aggregate([
+		this.configDB.changelog.aggregate([
 			{ $group : { _id : { what : "$what", note : "$details.note" }, total : { $sum : 1  } } } 
 		])
 	)
@@ -48,7 +80,7 @@ sh.op_count = function() {
 
 sh.ops_by_hour = function() {
 	sendtoscreen(
-		configDB().changelog.aggregate([
+		this.configDB.changelog.aggregate([
 			{ $project : { day : { $dayOfYear : "$time" }, time : { $hour : "$time" }, what : "$what", note : "$details.note" } }, 
 			{ $group : { _id : { day : "$day", time : "$time", what : "$what", note : "$note" }, count : { $sum : 1 } } }, 
 			{ $sort : { "_id.day" : 1, "_id.time" : 1 } } 
@@ -58,7 +90,7 @@ sh.ops_by_hour = function() {
 
 sh.ops_by_hour_not_aborted = function() {
 	sendtoscreen(
-		configDB().changelog.aggregate([
+		this.configDB.changelog.aggregate([
 			{ $match : { "details.note" : { $ne : 'aborted' } } },
 			{ $project : { day : { $dayOfYear : "$time" }, time : { $hour : "$time" }, what : "$what" } },
 			{ $group : { _id : { day : "$day", time : "$time", what : "$what" }, count : { $sum : 1 } } },
@@ -68,7 +100,7 @@ sh.ops_by_hour_not_aborted = function() {
 }
 
 sh.ops_by_hour_not_aborted_condensed = function() {
-	configDB().changelog.aggregate([
+	this.configDB.changelog.aggregate([
 		{ $match : { "details.note" : { $ne : 'aborted' } } },
 		{ $project : { day : { $dayOfYear : "$time" }, time : { $hour : "$time" }, what : "$what" } },
 		{ $group : { _id : { day : "$day", time : "$time", what : "$what" }, count : { $sum : 1 } } },
@@ -78,7 +110,7 @@ sh.ops_by_hour_not_aborted_condensed = function() {
 
 sh.ops_by_ns = function() {
 	sendtoscreen(
-		configDB().changelog.aggregate([
+		this.configDB.changelog.aggregate([
 			{ $group : { _id : { what : "$what", ns : "$ns", note : "$details.note" }, total : { $sum : 1  } } },
 			{ $sort : { "_id.ns" : 1, "_id.what" : 1 } } 
 		])
@@ -87,7 +119,7 @@ sh.ops_by_ns = function() {
 
 sh.splits_and_migrations = function() {
 	sendtoscreen(
-		configDB().changelog.aggregate([
+		this.configDB.changelog.aggregate([
 			{$group: {
 				_id:{ "ns":"$ns","server":"$server"},
 				multiSplits:{$sum:{$cond:[{$eq:["$what","multi-split"]},1,0]}},
@@ -103,7 +135,7 @@ sh.splits_and_migrations = function() {
 
 sh.errors_by_phase = function() {
 	sendtoscreen(
-		configDB().changelog.aggregate([
+		this.configDB.changelog.aggregate([
 			{ $match : { "details.note" : 'aborted' } },
 			{ $group : { _id : { what : "$what", errmsg : "$details.errmsg" }, count : { $sum : 1 } } },
 			{ $sort : { "_id.what" : 1, count : -1 } }
@@ -112,18 +144,18 @@ sh.errors_by_phase = function() {
 }
 
 sh.covered_period = function() {
-	sendtoscreen( configDB().changelog.find({},{_id:0, time:1}).limit(1) )
-	sendtoscreen( configDB().changelog.find({},{_id:0, time:1}).sort({$natural:-1}).limit(1) )
+	sendtoscreen( this.configDB.changelog.find({},{_id:0, time:1}).limit(1) )
+	sendtoscreen( this.configDB.changelog.find({},{_id:0, time:1}).sort({$natural:-1}).limit(1) )
 }
 
 sh.first_last_migration = function() {
-	sendtoscreen( configDB().changelog.find({what:"moveChunk.commit"},{_id:0, time:1}).limit(1) )
-	sendtoscreen( configDB().changelog.find({what:"moveChunk.commit"},{_id:0, time:1}).sort({$natural:-1}).limit(1) )
+	sendtoscreen( this.configDB.changelog.find({what:"moveChunk.commit"},{_id:0, time:1}).limit(1) )
+	sendtoscreen( this.configDB.changelog.find({what:"moveChunk.commit"},{_id:0, time:1}).sort({$natural:-1}).limit(1) )
 }
 
 sh.moves_by_donor = function() {
 	sendtoscreen(
-		configDB().changelog.aggregate([
+		this.configDB.changelog.aggregate([
 			{ $match: { "what" : "moveChunk.start" }},
 			{ $group : { _id: { from: "$details.from", ns : "$ns"}, count: { $sum : 1 } } },
 			{ $sort : { "count" : -1 } }
@@ -133,7 +165,7 @@ sh.moves_by_donor = function() {
 
 sh.rates_and_volumes = function() {
 	sendtoscreen(
-		configDB().changelog.aggregate([
+		this.configDB.changelog.aggregate([
 			{ $match: { what: { "$in": [ "moveChunk.commit", "moveChunk.start" ] } } },
 			{ $project: { _id: 0,
 				what: "$what", time: "$time",
@@ -195,7 +227,7 @@ sh.rates_and_volumes = function() {
 
 sh.hot_shard = function() {
 	sendtoscreen(
-		configDB().changelog.aggregate([
+		this.configDB.changelog.aggregate([
 			{$group: {
 				_id:{ "ns":"$ns","server":"$server"},
 				multiSplits:{$sum:{$cond:[{$eq:["$what","multi-split"]},1,0]}},
@@ -209,277 +241,73 @@ sh.hot_shard = function() {
 	)
 }
 
-//function printShardingStatus(configDB, verbose) {
-    //// configDB is a DB object that contains the sharding metadata of interest.
-    //// Defaults to the db named "config" on the current connection.
-    //if (configDB === undefined)
-        //configDB = db.getSisterDB('config');
 
-    //var version = configDB.getCollection("version").findOne();
-    //if (version == null) {
-        //print(
-            //"printShardingStatus: this db does not have sharding enabled. be sure you are connecting to a mongos from the shell and not to a mongod.");
-        //return;
-    //}
+sh.rebalance = function(ns) {
 
-    //var raw = "";
-    //var output = function(indent, s) {
-        //raw += sh._shardingStatusStr(indent, s);
-    //};
-    //output(0, "--- Sharding Status --- ");
-    //output(1, "sharding version: " + tojson(configDB.getCollection("version").findOne()));
+    var maxSize = sh.chunkSize();
+    var halfSize = maxSize / 2;
+    var coll = sh.configDB.collections.findOne({_id: ns});
 
-    //output(1, "shards:");
-    //configDB.shards.find().sort({_id: 1}).forEach(function(z) {
-        //output(2, tojsononeline(z));
-    //});
+    print("Collection: ", tojsononeline(coll))
+    print("Max Size: ", sh._dataFormat(halfSize))
 
-    //// (most recently) active mongoses
-    //var mongosActiveThresholdMs = 60000;
-    //var mostRecentMongos = configDB.mongos.find().sort({ping: -1}).limit(1);
-    //var mostRecentMongosTime = null;
-    //var mongosAdjective = "most recently active";
-    //if (mostRecentMongos.hasNext()) {
-        //mostRecentMongosTime = mostRecentMongos.next().ping;
-        //// Mongoses older than the threshold are the most recent, but cannot be
-        //// considered "active" mongoses. (This is more likely to be an old(er)
-        //// configdb dump, or all the mongoses have been stopped.)
-        //if (mostRecentMongosTime.getTime() >= Date.now() - mongosActiveThresholdMs) {
-            //mongosAdjective = "active";
-        //}
-    //}
+    // Ensure the balancer and auto splits are off
+    sh.stopBalancer();
+    sh.disableAutoSplit();
 
-    //output(1, mongosAdjective + " mongoses:");
-    //if (mostRecentMongosTime === null) {
-        //output(2, "none");
-    //} else {
-        //var recentMongosQuery = {
-            //ping: {
-                //$gt: (function() {
-                    //var d = mostRecentMongosTime;
-                    //d.setTime(d.getTime() - mongosActiveThresholdMs);
-                    //return d;
-                //})()
-            //}
-        //};
+    // Process chunks in each shard
+    sh.configDB.shards.find({state: 1}, {_id:1}).forEach(function(shard) {
+        var startingChunk = undefined;  // Drop anchor
+        var prevChunk = undefined;      // Previous chunk (current chunk is part of function)
+        var runningSize = 0;            // Trailing aggregate chunk size
 
-        //if (verbose) {
-            //configDB.mongos.find(recentMongosQuery).sort({ping: -1}).forEach(function(z) {
-                //output(2, tojsononeline(z));
-            //});
-        //} else {
-            //configDB.mongos
-                //.aggregate([
-                    //{$match: recentMongosQuery},
-                    //{$group: {_id: "$mongoVersion", num: {$sum: 1}}},
-                    //{$sort: {num: -1}}
-                //])
-                //.forEach(function(z) {
-                    //output(2, tojson(z._id) + " : " + z.num);
-                //});
-        //}
-    //}
+        print();
+        print("------- Shard: ", shard._id, "--------");
+        print();
 
-    //output(1, "autosplit:");
+        sh.configDB.chunks.find({"ns": ns, "shard": shard._id}).sort({min: 1}).forEach(function(chunk) {
 
-    //// Is autosplit currently enabled
-    //output(2, "Currently enabled: " + (sh.getShouldAutoSplit(configDB) ? "yes" : "no"));
+            var dsResult = sh.chunkDataSize(ns, coll.key, chunk.min, chunk.max, true);
 
-    //output(1, "balancer:");
+            // Can't retrieve size so start over
+            if ( dsResult.ok === 0 ) {
+                printjson(dsResult);
+                startingChunk = undefined;
+                return;
+            }
 
-    //// Is the balancer currently enabled
-    //output(2, "Currently enabled:  " + (sh.getBalancerState(configDB) ? "yes" : "no"));
+            var dataSize = dsResult.size;
+            print("Chunk: "+chunk._id, "Size: "+sh._dataFormat(dataSize), "Running: "+sh._dataFormat(runningSize));
 
-    //// Is the balancer currently active
-    //var balancerRunning = "unknown";
-    //var balancerStatus = configDB.adminCommand({balancerStatus: 1});
-    //if (balancerStatus.code != ErrorCodes.CommandNotFound) {
-        //balancerRunning = balancerStatus.inBalancerRound ? "yes" : "no";
-    //}
-    //output(2, "Currently running:  " + balancerRunning);
+            // Start processing
+            if ( startingChunk === undefined ) {
+                startingChunk = chunk;
+                prevChunk = chunk;
+                runningSize = 0;
+            }
 
-    //// Output the balancer window
-    //var balSettings = sh.getBalancerWindow(configDB);
-    //if (balSettings) {
-        //output(3,
-               //"Balancer active window is set between " + balSettings.start + " and " +
-                   //balSettings.stop + " server local time");
-    //}
+            // Chunk big enough, merge any accumulated chunks
+            // then start over
+            if ( dataSize > halfSize ) {
+                sh._mergeChunks(startingChunk, prevChunk)
+                startingChunk = undefined;
+                return;
+            }
 
-    //// Output the list of active migrations
-    //var activeMigrations = sh.getActiveMigrations(configDB);
-    //if (activeMigrations.length > 0) {
-        //output(2, "Collections with active migrations: ");
-        //activeMigrations.forEach(function(migration) {
-            //output(3, migration._id + " started at " + migration.when);
-        //});
-    //}
+            // Commulative chunks must be merged
+            if ( runningSize > halfSize ) {
+                sh._mergeChunks(startingChunk, prevChunk)
+                startingChunk = chunk;
+                runningSize = 0;
+            }
 
-    //// Actionlog and version checking only works on 2.7 and greater
-    //var versionHasActionlog = false;
-    //var metaDataVersion = configDB.getCollection("version").findOne().currentVersion;
-    //if (metaDataVersion > 5) {
-        //versionHasActionlog = true;
-    //}
-    //if (metaDataVersion == 5) {
-        //var verArray = db.serverBuildInfo().versionArray;
-        //if (verArray[0] == 2 && verArray[1] > 6) {
-            //versionHasActionlog = true;
-        //}
-    //}
+            prevChunk = chunk;
+            runningSize += dataSize;
+        });
 
-    //if (versionHasActionlog) {
-        //// Review config.actionlog for errors
-        //var actionReport = sh.getRecentFailedRounds(configDB);
-        //// Always print the number of failed rounds
-        //output(2, "Failed balancer rounds in last 5 attempts:  " + actionReport.count);
-
-        //// Only print the errors if there are any
-        //if (actionReport.count > 0) {
-            //output(2, "Last reported error:  " + actionReport.lastErr);
-            //output(2, "Time of Reported error:  " + actionReport.lastTime);
-        //}
-
-        //output(2, "Migration Results for the last 24 hours: ");
-        //var migrations = sh.getRecentMigrations(configDB);
-        //if (migrations.length > 0) {
-            //migrations.forEach(function(x) {
-                //if (x._id === "Success") {
-                    //output(3, x.count + " : " + x._id);
-                //} else {
-                    //output(3,
-                           //x.count + " : Failed with error '" + x._id + "', from " + x.from +
-                               //" to " + x.to);
-                //}
-            //});
-        //} else {
-            //output(3, "No recent migrations");
-        //}
-    //}
-
-    //output(1, "databases:");
-
-    //var databases = configDB.databases.find().sort({name: 1}).toArray();
-
-    //// Special case the config db, since it doesn't have a record in config.databases.
-    //databases.push({"_id": "config", "primary": "config", "partitioned": true});
-    //databases.sort(function(a, b) {
-        //return a["_id"] > b["_id"];
-    //});
-
-    //databases.forEach(function(db) {
-        //var truthy = function(value) {
-            //return !!value;
-        //};
-        //var nonBooleanNote = function(name, value) {
-            //// If the given value is not a boolean, return a string of the
-            //// form " (<name>: <value>)", where <value> is converted to JSON.
-            //var t = typeof(value);
-            //var s = "";
-            //if (t != "boolean" && t != "undefined") {
-                //s = " (" + name + ": " + tojson(value) + ")";
-            //}
-            //return s;
-        //};
-
-        //output(2, tojsononeline(db, "", true));
-
-        //if (db.partitioned) {
-            //configDB.collections.find({_id: new RegExp("^" + RegExp.escape(db._id) + "\\.")})
-                //.sort({_id: 1})
-                //.forEach(function(coll) {
-                    //if (!coll.dropped) {
-                        //output(3, coll._id);
-                        //output(4, "shard key: " + tojson(coll.key));
-                        //output(4,
-                               //"unique: " + truthy(coll.unique) +
-                                   //nonBooleanNote("unique", coll.unique));
-                        //output(4,
-                               //"balancing: " + !truthy(coll.noBalance) +
-                                   //nonBooleanNote("noBalance", coll.noBalance));
-                        //output(4, "chunks:");
-
-                        //res = configDB.chunks
-                                  //.aggregate({$match: {ns: coll._id}},
-                                             //{$group: {_id: "$shard", cnt: {$sum: 1}}},
-                                             //{$project: {_id: 0, shard: "$_id", nChunks: "$cnt"}},
-                                             //{$sort: {shard: 1}})
-                                  //.toArray();
-                        //var totalChunks = 0;
-                        //res.forEach(function(z) {
-                            //totalChunks += z.nChunks;
-                            //output(5, z.shard + "\t" + z.nChunks);
-                        //});
-
-                        //if (totalChunks < 20 || verbose) {
-                            //configDB.chunks.find({"ns": coll._id})
-                                //.sort({min: 1})
-                                //.forEach(function(chunk) {
-                                    //output(4,
-                                           //tojson(chunk.min) + " -->> " + tojson(chunk.max) +
-                                               //" on : " + chunk.shard + " " +
-                                               //tojson(chunk.lastmod) + " " +
-                                               //(chunk.jumbo ? "jumbo " : ""));
-                                //});
-                        //} else {
-                            //output(
-                                //4,
-                                //"too many chunks to print, use verbose if you want to force print");
-                        //}
-
-                        //configDB.tags.find({ns: coll._id}).sort({min: 1}).forEach(function(tag) {
-                            //output(4,
-                                   //" tag: " + tag.tag + "  " + tojson(tag.min) + " -->> " +
-                                       //tojson(tag.max));
-                        //});
-                    //}
-                //});
-        //}
-    //});
-
-    //print(raw);
-//}
-
-    //if (config === undefined)
-        //config = db.getSisterDB('config');
-
-
-//sh.rebalance = function(ns) {
-    //// configDB is a DB object that contains the sharding metadata of interest.
-    //// Defaults to the db named "config" on the current connection.
-    //if (configDB === undefined)
-        //configDB = db.getSiblingDB('config');
-
-
-    //var saveDB = db;
-    //output(1, "databases:");
-    //configDB.databases.find().sort({name: 1}).forEach(function(db) {
-        //output(2, tojson(db, "", true));
-
-    //var shard = undefined;
-    //var prevChunk = undefined;
-    //var coll = configDB.collections.findOne({_id: ns});
-    //var runningSize = 0;
-
-    //configDB.chunks.find({"ns": coll._id}).sort({shard:1, min: 1}).forEach(function(chunk) {
-        //var ds = sh.chunkDataSize(coll._id, coll.key, chunk.min, chunk.max, true);
-        //runningSize += ds
-
-
-        //var mydb = shards[chunk.shard].getDB(db._id);
-        //var out = mydb.runCommand({
-            //dataSize: coll._id,
-            //keyPattern: coll.key,
-            //min: chunk.min,
-            //max: chunk.max
-        //});
-        //delete out.millis;
-        //delete out.ok;
-
-        //output(4,
-            //tojson(chunk.min) + " -->> " + tojson(chunk.max) + " on : " +
-            //chunk.shard + " " + tojson(out));
-
-    //});
+        // Merge any leftovers
+        sh._mergeChunks(startingChunk, prevChunk)
+    });
+}
 
 
