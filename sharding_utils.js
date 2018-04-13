@@ -2,6 +2,10 @@ sh._debugMode = true;
 sh._oldhelp=sh.help
 sh._configDB = db.getSiblingDB("config");
 
+sh._resetRebalanceStats = function() {
+    sh._rebalanceStats = { merges: 0, breaks: 0 };
+}
+sh._resetRebalanceStats();
 
 function getRandomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -14,10 +18,9 @@ sh._sameChunk = function(a, b) {
 }
 
 sh._contiguousChunks = function(a, b) {
-    if (a.max.toString() === b.min.toString()) {
-        return true;
-    }
-    print("_contiguousChunks(",tojsononeline(a.max),",", tojsononeline(b.min), ") =", false);
+    if (bsonWoCompare(a.max, b.min) === 0) return true;
+    print("Non-contiguous Chunks(",tojsononeline(a.max),",", tojsononeline(b.min));
+    sh._rebalanceStats.breaks++;
     return false;
 }
 
@@ -62,9 +65,11 @@ sh.mergeChunks = function(ns, lowerBound, upperBound) {
     var rc = undefined;
     if ( this._debugMode === true ) {
         rc = { ok : getRandomInt(0,1), msg : "Debug Mode" }
+        sh._rebalanceStats.merges++;
     }
     else {
         rc = this._adminCommand( { mergeChunks: ns, bounds: [ lowerBound, upperBound ] });
+        sh._rebalanceStats.merges++;
     }
     return rc;
 }
@@ -275,7 +280,9 @@ sh.rebalance = function(ns) {
     var maxSize = sh._chunkSize();
     var halfSize = maxSize / 2;
     var coll = sh._configDB.collections.findOne({_id: ns});
+    var chunksProcessed = 0;
 
+    sh._resetRebalanceStats();
     print("Collection: ", tojsononeline(coll))
     print("Max Size: ", sh._dataFormat(halfSize))
 
@@ -290,6 +297,8 @@ sh.rebalance = function(ns) {
         print();
 
         sh._configDB.chunks.find({"ns": ns, "shard": shard._id}).sort({min: 1}).forEach(function(chunk) {
+
+            chunksProcessed++;
 
             // Start processing
             if ( startingChunk === undefined ) {
@@ -335,5 +344,10 @@ sh.rebalance = function(ns) {
         // Merge any leftovers
         sh._mergeChunks(startingChunk, prevChunk)
     });
+
+    print("----------------------------------------");
+    print("Chunks :", chunksProcessed);
+    print("Breaks :", sh._rebalanceStats.breaks);
+    print("Merges :", sh._rebalanceStats.merges);
 }
 
