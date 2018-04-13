@@ -275,7 +275,7 @@ sh.hot_shard = function() {
 }
 
 
-sh.rebalance = function(ns) {
+sh.consolidate_ns_chunks = function(ns) {
 
     var maxSize = sh._chunkSize();
     var halfSize = maxSize / 2;
