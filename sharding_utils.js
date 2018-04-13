@@ -337,4 +337,3 @@ sh.rebalance = function(ns) {
     });
 }
 
-sh.rebalance('cacheDb.Thumbnails.chunks')
