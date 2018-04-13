@@ -1,6 +1,6 @@
-sh.debugMode = true;
-sh.oldhelp=sh.help
-sh.configDB = db.getSiblingDB("config");
+sh._debugMode = true;
+sh._oldhelp=sh.help
+sh._configDB = db.getSiblingDB("config");
 
 
 function getRandomInt(min, max) {
@@ -14,17 +14,23 @@ sh._sameChunk = function(a, b) {
 }
 
 sh._contiguousChunks = function(a, b) {
-    var rc = false;
-    if (a.max.toString() === b.min.toString()) rc = true;
-    //print("_contiguousChunks(",tojsononeline(a.max),",", tojsononeline(b.min), ") =", rc);
-    return rc;
+    if (a.max.toString() === b.min.toString()) {
+        return true;
+    }
+    print("_contiguousChunks(",tojsononeline(a.max),",", tojsononeline(b.min), ") =", false);
+    return false;
 }
 
 sh._chunkSize = function() {
-    var rc = this.configDB.settings.findOne({_id: "chunksize"});
-    if (!rc) rc = 64;
+    var rc = this._configDB.settings.findOne({_id: "chunksize"});
+    if (rc) {
+        rc = rc.value;
+    }
+    else {
+        rc = 64;
+    }
     rc = rc*1024*1024;
-    print("Chunk Size: ", sh._dataFormat(rc))
+    //print("Chunk Size: ", sh._dataFormat(rc))
     return rc;
 }
 
@@ -32,7 +38,7 @@ sh.fakeChunkSizeDividedByTwo = sh._chunkSize() / 2;
 
 sh.chunkDataSize = function(ns, key, kmin, kmax, est) {
     var rc = undefined;
-    if ( this.debugMode === true ) {
+    if ( this._debugMode === true ) {
         rc = { ok : 1, size: getRandomInt(0, this.fakeChunkSizeDividedByTwo) };
     }
     else {
@@ -44,14 +50,17 @@ sh.chunkDataSize = function(ns, key, kmin, kmax, est) {
 }
 
 sh._chunkDataSize = function(key, chunk, est = true) {
-    var rc = this.chunkDataSize(chunk.ns, key, chunk.min, chunk.max, est);
-    if ( rc.ok === 0 ) printjson(rc);
-    return rc;
+    var result = this.chunkDataSize(chunk.ns, key, chunk.min, chunk.max, est);
+    if ( result.ok === 0 ) {
+        printjson(result);
+        return -1;
+    }
+    return result.size;
 }
 
 sh.mergeChunks = function(ns, lowerBound, upperBound) {
     var rc = undefined;
-    if ( this.debugMode === true ) {
+    if ( this._debugMode === true ) {
         rc = { ok : getRandomInt(0,1), msg : "Debug Mode" }
     }
     else {
@@ -75,7 +84,7 @@ function sendtoscreen(obj) {
 }
 
 sh.help = function() {
-	this.oldhelp()
+	this._oldhelp()
 	print("\tsh.op_count()                            Number of operations")
 	print("\tsh.ops_by_hour()                         Operations by hour")
 	print("\tsh.ops_by_hour_not_aborted()             Unaborted operations by hour")
@@ -91,7 +100,7 @@ sh.help = function() {
 
 sh.op_count = function() {
 	sendtoscreen(
-		this.configDB.changelog.aggregate([
+		this._configDB.changelog.aggregate([
 			{ $group : { _id : { what : "$what", note : "$details.note" }, total : { $sum : 1  } } } 
 		])
 	)
@@ -99,7 +108,7 @@ sh.op_count = function() {
 
 sh.ops_by_hour = function() {
 	sendtoscreen(
-		this.configDB.changelog.aggregate([
+		this._configDB.changelog.aggregate([
 			{ $project : { day : { $dayOfYear : "$time" }, time : { $hour : "$time" }, what : "$what", note : "$details.note" } }, 
 			{ $group : { _id : { day : "$day", time : "$time", what : "$what", note : "$note" }, count : { $sum : 1 } } }, 
 			{ $sort : { "_id.day" : 1, "_id.time" : 1 } } 
@@ -109,7 +118,7 @@ sh.ops_by_hour = function() {
 
 sh.ops_by_hour_not_aborted = function() {
 	sendtoscreen(
-		this.configDB.changelog.aggregate([
+		this._configDB.changelog.aggregate([
 			{ $match : { "details.note" : { $ne : 'aborted' } } },
 			{ $project : { day : { $dayOfYear : "$time" }, time : { $hour : "$time" }, what : "$what" } },
 			{ $group : { _id : { day : "$day", time : "$time", what : "$what" }, count : { $sum : 1 } } },
@@ -119,7 +128,7 @@ sh.ops_by_hour_not_aborted = function() {
 }
 
 sh.ops_by_hour_not_aborted_condensed = function() {
-	this.configDB.changelog.aggregate([
+	this._configDB.changelog.aggregate([
 		{ $match : { "details.note" : { $ne : 'aborted' } } },
 		{ $project : { day : { $dayOfYear : "$time" }, time : { $hour : "$time" }, what : "$what" } },
 		{ $group : { _id : { day : "$day", time : "$time", what : "$what" }, count : { $sum : 1 } } },
@@ -129,7 +138,7 @@ sh.ops_by_hour_not_aborted_condensed = function() {
 
 sh.ops_by_ns = function() {
 	sendtoscreen(
-		this.configDB.changelog.aggregate([
+		this._configDB.changelog.aggregate([
 			{ $group : { _id : { what : "$what", ns : "$ns", note : "$details.note" }, total : { $sum : 1  } } },
 			{ $sort : { "_id.ns" : 1, "_id.what" : 1 } } 
 		])
@@ -138,7 +147,7 @@ sh.ops_by_ns = function() {
 
 sh.splits_and_migrations = function() {
 	sendtoscreen(
-		this.configDB.changelog.aggregate([
+		this._configDB.changelog.aggregate([
 			{$group: {
 				_id:{ "ns":"$ns","server":"$server"},
 				multiSplits:{$sum:{$cond:[{$eq:["$what","multi-split"]},1,0]}},
@@ -154,7 +163,7 @@ sh.splits_and_migrations = function() {
 
 sh.errors_by_phase = function() {
 	sendtoscreen(
-		this.configDB.changelog.aggregate([
+		this._configDB.changelog.aggregate([
 			{ $match : { "details.note" : 'aborted' } },
 			{ $group : { _id : { what : "$what", errmsg : "$details.errmsg" }, count : { $sum : 1 } } },
 			{ $sort : { "_id.what" : 1, count : -1 } }
@@ -163,18 +172,18 @@ sh.errors_by_phase = function() {
 }
 
 sh.covered_period = function() {
-	sendtoscreen( this.configDB.changelog.find({},{_id:0, time:1}).limit(1) )
-	sendtoscreen( this.configDB.changelog.find({},{_id:0, time:1}).sort({$natural:-1}).limit(1) )
+	sendtoscreen( this._configDB.changelog.find({},{_id:0, time:1}).limit(1) )
+	sendtoscreen( this._configDB.changelog.find({},{_id:0, time:1}).sort({$natural:-1}).limit(1) )
 }
 
 sh.first_last_migration = function() {
-	sendtoscreen( this.configDB.changelog.find({what:"moveChunk.commit"},{_id:0, time:1}).limit(1) )
-	sendtoscreen( this.configDB.changelog.find({what:"moveChunk.commit"},{_id:0, time:1}).sort({$natural:-1}).limit(1) )
+	sendtoscreen( this._configDB.changelog.find({what:"moveChunk.commit"},{_id:0, time:1}).limit(1) )
+	sendtoscreen( this._configDB.changelog.find({what:"moveChunk.commit"},{_id:0, time:1}).sort({$natural:-1}).limit(1) )
 }
 
 sh.moves_by_donor = function() {
 	sendtoscreen(
-		this.configDB.changelog.aggregate([
+		this._configDB.changelog.aggregate([
 			{ $match: { "what" : "moveChunk.start" }},
 			{ $group : { _id: { from: "$details.from", ns : "$ns"}, count: { $sum : 1 } } },
 			{ $sort : { "count" : -1 } }
@@ -184,7 +193,7 @@ sh.moves_by_donor = function() {
 
 sh.rates_and_volumes = function() {
 	sendtoscreen(
-		this.configDB.changelog.aggregate([
+		this._configDB.changelog.aggregate([
 			{ $match: { what: { "$in": [ "moveChunk.commit", "moveChunk.start" ] } } },
 			{ $project: { _id: 0,
 				what: "$what", time: "$time",
@@ -246,7 +255,7 @@ sh.rates_and_volumes = function() {
 
 sh.hot_shard = function() {
 	sendtoscreen(
-		this.configDB.changelog.aggregate([
+		this._configDB.changelog.aggregate([
 			{$group: {
 				_id:{ "ns":"$ns","server":"$server"},
 				multiSplits:{$sum:{$cond:[{$eq:["$what","multi-split"]},1,0]}},
@@ -265,17 +274,13 @@ sh.rebalance = function(ns) {
 
     var maxSize = sh._chunkSize();
     var halfSize = maxSize / 2;
-    var coll = sh.configDB.collections.findOne({_id: ns});
+    var coll = sh._configDB.collections.findOne({_id: ns});
 
     print("Collection: ", tojsononeline(coll))
     print("Max Size: ", sh._dataFormat(halfSize))
 
-    // Ensure the balancer and auto splits are off
-    sh.stopBalancer();
-    sh.disableAutoSplit();
-
     // Process chunks in each shard
-    sh.configDB.shards.find({state: 1}, {_id:1}).forEach(function(shard) {
+    sh._configDB.shards.find({state: 1}, {_id:1}).forEach(function(shard) {
         var startingChunk = undefined;  // Drop anchor
         var prevChunk = undefined;      // Previous chunk (current chunk is part of function)
         var runningSize = 0;            // Trailing aggregate chunk size
@@ -284,38 +289,39 @@ sh.rebalance = function(ns) {
         print("------- Shard: ", shard._id, "--------");
         print();
 
-        sh.configDB.chunks.find({"ns": ns, "shard": shard._id}).sort({min: 1}).forEach(function(chunk) {
+        sh._configDB.chunks.find({"ns": ns, "shard": shard._id}).sort({min: 1}).forEach(function(chunk) {
 
             // Start processing
             if ( startingChunk === undefined ) {
-                startingChunk = chunk;
-                prevChunk = chunk;
+                startingChunk = prevChunk = chunk;
                 runningSize = 0;
             }
 
             print("Chunk:", chunk._id, "Running:", sh._dataFormat(runningSize));
 
-            // Stop on non-contiguous range
+            // Stop on non-contiguous range and reset to current chunk
             if ( !sh._sameChunk(prevChunk, chunk) && !sh._contiguousChunks(prevChunk, chunk) ) {
                 sh._mergeChunks(startingChunk, prevChunk)
-                startingChunk = undefined;
-                return;
+                startingChunk = prevChunk = chunk;
+                runningSize = 0;
             }
 
             // Gather chunk info
-            var dsResult = sh._chunkDataSize(coll.key, chunk);
-            var dataSize = dsResult.size;
+            var dataSize = sh._chunkDataSize(coll.key, chunk);
             print("Size:", sh._dataFormat(dataSize));
 
-            // Chunk big enough, merge any accumulated chunks
-            // then start over
-            if ( dsResult.ok === 0 || dataSize > halfSize ) {
+            // Failed to get the size for the chunk or the chunk 
+            // is already big enough so we coalesce what we have
+            // until now and skip this chunk
+            if ( dataSize < 0 || dataSize > halfSize ) {
                 sh._mergeChunks(startingChunk, prevChunk)
                 startingChunk = undefined;
                 return;
             }
 
             // Commulative chunks must be merged
+            // startingChunk + prevChunk < halfSize and currentChunk is big then c1+c2+c3 > maxSize?
+            // 31 x 1 MiB chunks + 1 x 31 MiB = 62 MiB < maxSize
             if ( runningSize > halfSize ) {
                 sh._mergeChunks(startingChunk, prevChunk)
                 startingChunk = chunk;
@@ -331,4 +337,4 @@ sh.rebalance = function(ns) {
     });
 }
 
-
+sh.rebalance('cacheDb.Thumbnails.chunks')
