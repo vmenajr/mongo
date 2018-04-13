@@ -7,7 +7,20 @@ function getRandomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-sh.chunkSize = function() {
+sh._sameChunk = function(a, b) {
+    //print("_sameChunk(",a._id,",", b._id, ")");
+    if (a._id === b._id) return true;
+    return false;
+}
+
+sh._contiguousChunks = function(a, b) {
+    var rc = false;
+    if (a.max.toString() === b.min.toString()) rc = true;
+    //print("_contiguousChunks(",tojsononeline(a.max),",", tojsononeline(b.min), ") =", rc);
+    return rc;
+}
+
+sh._chunkSize = function() {
     var rc = this.configDB.settings.findOne({_id: "chunksize"});
     if (!rc) rc = 64;
     rc = rc*1024*1024;
@@ -15,7 +28,7 @@ sh.chunkSize = function() {
     return rc;
 }
 
-sh.fakeChunkSizeDividedByTwo = sh.chunkSize() / 2;
+sh.fakeChunkSizeDividedByTwo = sh._chunkSize() / 2;
 
 sh.chunkDataSize = function(ns, key, kmin, kmax, est) {
     var rc = undefined;
@@ -30,6 +43,12 @@ sh.chunkDataSize = function(ns, key, kmin, kmax, est) {
     return rc;
 }
 
+sh._chunkDataSize = function(key, chunk, est = true) {
+    var rc = this.chunkDataSize(chunk.ns, key, chunk.min, chunk.max, est);
+    if ( rc.ok === 0 ) printjson(rc);
+    return rc;
+}
+
 sh.mergeChunks = function(ns, lowerBound, upperBound) {
     var rc = undefined;
     if ( this.debugMode === true ) {
@@ -38,14 +57,14 @@ sh.mergeChunks = function(ns, lowerBound, upperBound) {
     else {
         rc = this._adminCommand( { mergeChunks: ns, bounds: [ lowerBound, upperBound ] });
     }
-    print("Merge Attempt: ", tojson(lowerBound), ", ", tojson(upperBound), " = ", rc.ok);
     return rc;
 }
 
 sh._mergeChunks = function(firstChunk, lastChunk) {
     var rc = { ok : 1 };
-    if (firstChunk._id !== lastChunk._id) {
+    if ( firstChunk && lastChunk && !sh._sameChunk(firstChunk, lastChunk) ) {
         rc = this.mergeChunks(firstChunk.ns, firstChunk.min, lastChunk.max);
+        print("Merge Attempt:", firstChunk._id, ",", lastChunk._id, "=", rc.ok);
     }
     if (rc.ok !== 1) printjson(rc);
     return rc;
@@ -244,7 +263,7 @@ sh.hot_shard = function() {
 
 sh.rebalance = function(ns) {
 
-    var maxSize = sh.chunkSize();
+    var maxSize = sh._chunkSize();
     var halfSize = maxSize / 2;
     var coll = sh.configDB.collections.findOne({_id: ns});
 
@@ -267,18 +286,6 @@ sh.rebalance = function(ns) {
 
         sh.configDB.chunks.find({"ns": ns, "shard": shard._id}).sort({min: 1}).forEach(function(chunk) {
 
-            var dsResult = sh.chunkDataSize(ns, coll.key, chunk.min, chunk.max, true);
-
-            // Can't retrieve size so start over
-            if ( dsResult.ok === 0 ) {
-                printjson(dsResult);
-                startingChunk = undefined;
-                return;
-            }
-
-            var dataSize = dsResult.size;
-            print("Chunk: "+chunk._id, "Size: "+sh._dataFormat(dataSize), "Running: "+sh._dataFormat(runningSize));
-
             // Start processing
             if ( startingChunk === undefined ) {
                 startingChunk = chunk;
@@ -286,9 +293,23 @@ sh.rebalance = function(ns) {
                 runningSize = 0;
             }
 
+            print("Chunk:", chunk._id, "Running:", sh._dataFormat(runningSize));
+
+            // Stop on non-contiguous range
+            if ( !sh._sameChunk(prevChunk, chunk) && !sh._contiguousChunks(prevChunk, chunk) ) {
+                sh._mergeChunks(startingChunk, prevChunk)
+                startingChunk = undefined;
+                return;
+            }
+
+            // Gather chunk info
+            var dsResult = sh._chunkDataSize(coll.key, chunk);
+            var dataSize = dsResult.size;
+            print("Size:", sh._dataFormat(dataSize));
+
             // Chunk big enough, merge any accumulated chunks
             // then start over
-            if ( dataSize > halfSize ) {
+            if ( dsResult.ok === 0 || dataSize > halfSize ) {
                 sh._mergeChunks(startingChunk, prevChunk)
                 startingChunk = undefined;
                 return;
