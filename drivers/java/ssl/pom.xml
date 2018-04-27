@@ -34,7 +34,7 @@
             <systemProperties>
               <systemProperty>
                 <key>javax.net.ssl.trustStore</key>
-                <value>/Users/vmena/ws/src/java/ssl/keystore</value>
+                <value>keystore</value>
               </systemProperty>
               <systemProperty>
                 <key>javax.net.ssl.trustStorePassword</key>
