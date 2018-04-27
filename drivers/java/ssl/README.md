@@ -23,7 +23,7 @@ Creates three files after prompting the user for various pieces of information:
 Ensure `Common Name` (CN) or `Subject Alternate Name` (SAN) matches the fully qualified domain name for the host where the cert will be used (e.g. `hostname -f`) otherwise the clients will need to allow invalid hostnames during certificate validation or validation must be disabled altogether.
 
 
-makekeystore.sh <password>
+makekeystore.sh [password]
 ---
 Creates a java keystore in the current directory with the given password (mongodb by default)
 

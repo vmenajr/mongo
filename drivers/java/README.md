@@ -7,7 +7,7 @@ Tested on MacOS only
 * maven (`brew install maven`)
 * openssl (maybe?)
 
-gen.sh Name <archtype>
+gen.sh Name [archtype]
 ---
 Build skeleton app using the `simple` maven template or archetype.  Overwrites the generated pom.xml with pom.tpl
 
@@ -18,7 +18,7 @@ build.sh
 ---
 Runs the package phase for all modules listed in root pom.xml
 
-run.sh
+run.sh name ["args"]
 ---
 Leverages [mavens exec plugin](https://www.mojohaus.org/exec-maven-plugin/index.html) to execute the app passing any arguments given to the script.
 e.g. ./run.sh ssl "-uri mongodb://hostname/?ssl=true"
