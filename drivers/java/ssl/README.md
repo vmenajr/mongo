@@ -1,6 +1,10 @@
-## Quick + dirty java driver playground using maven
+## Sample SSL client connection using self-signed cert
 
-Tested on MacOS only
+The scripts faciliate the creation of a self-signed cert and the java keystore.  The sample client code uses the java trust store with the same self-signed certificate as the server.  The `pom.xml` specifies the java truststore settings required for client certificate validation of the server.  An alternate approach would be to disable certificate validation in java altogether (not recommended).
+
+The following is an example of how to ignore invalid certificates:  https://futurestud.io/tutorials/retrofit-2-how-to-trust-unsafe-ssl-certificates-self-signed-expired
+
+Note:  Tested on MacOS only.
 
 ### Pre-requisites
 * java (`brew cask install java`)
