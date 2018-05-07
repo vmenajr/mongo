@@ -101,6 +101,7 @@ sh.help = function() {
 	print("\tsh.first_last_migration()                First and last successful migrations")
 	print("\tsh.moves_by_donor()                      Shard moves sorted by donor")
 	print("\tsh.rates_and_volumes()                   Successful migration rates and volumes")
+	print("\tsh.print_sizes()                         Print data sizes")
 }
 
 sh.op_count = function() {
@@ -351,69 +352,91 @@ sh.consolidate_ns_chunks = function(ns) {
     print("Merges :", sh._rebalanceStats.merges);
 }
 
-sh.printSizes = function(configDB) {
-    // configDB is a DB object that contains the sharding metadata of interest.
-    // Defaults to the db named "config" on the current connection.
-    if (configDB === undefined)
-        configDB = db.getSisterDB('config');
+var indentStr = function(indent, s) {
+	if (typeof(s) === "undefined") {
+		s = indent;
+		indent = 0;
+	}
+	if (indent > 0) {
+		indent = (new Array(indent + 1)).join(" ");
+		s = indent + s.replace(/\n/g, "\n" + indent);
+	}
+	return s;
+};
 
-    var version = configDB.getCollection("version").findOne();
-    if (version == null) {
-        print("printShardingSizes : not a shard db!");
-        return;
-    }
+sh._shardingStatusStrX = function(indent, s) {
+	// convert from logical indentation to actual num of chars
+	if (indent == 0) {
+		indent = 0;
+	} else if (indent == 1) {
+		indent = 2;
+	} else {
+		indent = (indent - 1) * 8;
+	}
+	return indentStr(indent, s) + "\n";
+};
 
-    var raw = "";
+sh.print_sizes = function(configDB) {
+	// configDB is a DB object that contains the sharding metadata of interest.
+	// Defaults to the db named "config" on the current connection.
+	if (configDB === undefined)
+		configDB = db.getSisterDB('config');
+
+	var version = configDB.getCollection("version").findOne();
+	if (version == null) {
+		print("printShardingSizes : not a shard db!");
+		return;
+	}
+
+	var raw = "";
 	var raw_lines = 0;
-    var output = function(indent, s) {
-        raw += sh._shardingStatusStr(indent, s);
+	var output = function(indent, s) {
+		raw += sh._shardingStatusStrX(indent, s);
 		raw_lines++;
 		if (raw_lines > 1000) {
 			print(raw);
 			raw = "";
 			raw_lines = 0;
 		}
-    };
-    output(0, "--- Sharding Sizes --- ");
-    output(1, "sharding version: " + tojson(configDB.getCollection("version").findOne()));
+	};
 
-    output(1, "shards:");
-    var shards = {};
-    configDB.shards.find().forEach(function(z) {
-        shards[z._id] = new Mongo(z.host);
-        output(2, tojson(z));
-    });
+	output(0, "--- Sharding Sizes --- ");
+	output(1, "sharding version: " + tojson(configDB.getCollection("version").findOne()));
 
-    var saveDB = db;
-    output(1, "databases:");
-    configDB.databases.find().sort({name: 1}).forEach(function(db) {
-        output(2, tojson(db, "", true));
+	output(1, "shards:");
+	configDB.shards.find().forEach(function(z) {
+		output(2, tojson(z));
+	});
 
-        if (db.partitioned) {
-            configDB.collections.find({_id: new RegExp("^" + RegExp.escape(db._id) + "\.")})
-                .sort({_id: 1})
-                .forEach(function(coll) {
-                    output(3, coll._id + " chunks:");
-                    configDB.chunks.find({"ns": coll._id}).sort({min: 1}).forEach(function(chunk) {
-                        var mydb = shards[chunk.shard].getDB(db._id);
-                        var out = mydb.runCommand({
-                            dataSize: coll._id,
-                            keyPattern: coll.key,
-                            min: chunk.min,
-                            max: chunk.max
-                        });
-                        delete out.millis;
-                        delete out.ok;
+	var saveDB = db;
+	output(1, "databases:");
+	configDB.databases.find().sort({name: 1}).forEach(function(db) {
+		output(2, tojson(db, "", true));
 
-                        output(4,
-                               tojson(chunk.min) + " -->> " + tojson(chunk.max) + " on : " +
-                                   chunk.shard + " " + tojson(out));
+		if (db.partitioned) {
+			configDB.collections.find({_id: new RegExp("^" + RegExp.escape(db._id) + "\.")})
+				.sort({_id: 1})
+				.forEach(function(coll) {
+					output(3, coll._id + " chunks:");
+					configDB.chunks.find({"ns": coll._id}).sort({min: 1}).forEach(function(chunk) {
+						var out = saveDB.adminCommand({
+							dataSize: coll._id,
+							keyPattern: coll.key,
+							min: chunk.min,
+							max: chunk.max
+						});
+						delete out.millis;
+						delete out.ok;
 
-                    });
-                });
-        }
-    });
+						output(4,
+							tojson(chunk.min) + " -->> " + tojson(chunk.max) + " on : " +
+							chunk.shard + " " + tojson(out));
 
-    print(raw);
+					});
+				});
+		}
+	});
+
+	print(raw);
 }
 
