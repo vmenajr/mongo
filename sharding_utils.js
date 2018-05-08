@@ -12,8 +12,10 @@ function getRandomInt(min, max) {
 }
 
 sh._sameChunk = function(a, b) {
-    //print("_sameChunk(",a._id,",", b._id, ")");
-    if (a._id === b._id) return true;
+	//print("_sameChunk(",a._id,",", b._id, ")");
+	lhs={ id: a._id };
+	rhs={ id: b._id };
+    if (bsonWoCompare(lhs, rhs) === 0) return true;
     return false;
 }
 
