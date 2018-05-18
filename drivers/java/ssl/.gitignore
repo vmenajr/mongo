@@ -1,4 +1,5 @@
 *.key
 *.crt
 *.pem
+*.srl
 keystore
