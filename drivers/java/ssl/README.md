@@ -14,11 +14,14 @@ Note:  Tested on MacOS only.
 
 makecert.sh
 ---
-Creates three files after prompting the user for various pieces of information:
+Creates a root-ca.pem unless it already exists in the current directory then iterates over the host list provided via the `-h` parameter to generate the certs.  By default it generates a single cert using `$(hostname -f)`.  Once complete the current directory should have all of the following:
 
-* mongodb.crt - the self-signed certificate with CA: true
-* mongodb.key - the private key
-* mongodb.pem - the combined key+cert used in MongoDB
+* root-ca.key  - The private key for the root-ca
+* root-ca.pem  - The RootCA certificate
+* root-ca.srl  - The RootCA serial number runner
+* hostname.crt - The self-signed certificated validated by root-ca.pem
+* hostname.key - The private key
+* hostname.pem - The combined key+cert used in MongoDB
 
 Ensure `Common Name` (CN) or `Subject Alternate Name` (SAN) matches the fully qualified domain name for the host where the cert will be used (e.g. `hostname -f`) otherwise the clients will need to allow invalid hostnames during certificate validation or validation must be disabled altogether.
 

@@ -7,7 +7,6 @@ city="SomeCity"
 org="SomeOrganization"
 unit="SomeOrganizationalUnit"
 hosts=$(hostname -f)
-email="root@${host}"
 
 abend() {
     echo "Abend: $@"
@@ -16,7 +15,7 @@ abend() {
 }
 
 usage() { 
-    echo "Usage: $0 [-d days] [-s state] [-c city] [-o org] [-u unit] [-h hosts] [-e email]"
+    echo "Usage: $0 [-d days] [-s state] [-c city] [-o org] [-u unit] [-h hosts] [-e email] [-v]"
     echo "  bits:    Number of bits ($bits)"
     echo "  days:    Number of days ($days)"
     echo "  country: Country code ($country)"
@@ -27,11 +26,12 @@ usage() {
     echo "  hosts:   Fully qualified domain name for the server(s) using this cert ($host)."
     echo "           For multiple certs surround with quotes (e.g. -h \"host1 host2 ...\")"
     echo "  email:   Email associated with the cert ($email)"
+    echo "  -v   :   Verbose. Print certs as they are generated"
     echo
     exit 1
 }
 
-while getopts ":b:d:k:s:c:o:u:h:e:" o; do
+while getopts ":b:d:k:s:c:o:u:h:e:v" o; do
     case "${o}" in
         b)
             bits=${OPTARG}
@@ -60,6 +60,9 @@ while getopts ":b:d:k:s:c:o:u:h:e:" o; do
         e)
             email=${OPTARG}
             ;;
+        v)
+            verbose=1
+            ;;
         *)
             usage
             ;;
@@ -83,14 +86,19 @@ $ext
 "
 
 # Root Certificate Authority and private key
-openssl req -x509 -new -newkey rsa:${bits} -nodes -keyout root-ca.key -sha256 -days 1024 -out root-ca.pem -subj "${subject_template}ROOTCA"
-openssl x509 -noout -text -in root-ca.pem
+if [[ -f root-ca.pem && -f root-ca.key ]]; then
+    echo "Skipping RootCA generation in favor of current files..."
+else
+    openssl req -x509 -new -newkey rsa:${bits} -nodes -keyout root-ca.key -sha256 -days 1024 -out root-ca.pem -subj "${subject_template}ROOTCA"
+    [[ -z ${verbose} ]] || openssl x509 -noout -text -in root-ca.pem
+fi
 
 # Process hosts
 for host in $hosts; do
     # Create a signing request with new private key for host
-    csr=$(openssl req -new -newkey rsa:${bits} -nodes -keyout ${host}.key -subj "${subject_template}${host}" -days ${days} -sha256)
-    #openssl req -noout -text -in <(echo "$csr")
+	[[ -z ${email} ]] && email="root@${host}" || email="${email}@${host}"
+    csr=$(openssl req -new -newkey rsa:${bits} -nodes -keyout ${host}.key -subj "/emailAddress=${email}${subject_template}${host}" -days ${days} -sha256)
+    [[ -z ${verbose} ]] || openssl req -noout -text -in <(echo "$csr")
 
     # Create certificate signed with its private key and issued by our RootCA
     openssl x509 -req -extfile <(echo "$ext") -extensions EXT -CA root-ca.pem -CAkey root-ca.key -CAcreateserial -days ${days} -sha256 -out ${host}.crt -in <(echo "$csr")
@@ -98,7 +106,7 @@ for host in $hosts; do
     echo
     echo ${host}
     echo
-    openssl x509 -noout -text -in ${host}.pem
+    [[ -z ${verbose} ]] || openssl x509 -noout -text -in ${host}.pem
 done
 
 echo
