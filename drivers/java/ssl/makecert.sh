@@ -72,17 +72,9 @@ shift $((OPTIND-1))
 
 subject_template="/C=${country}/ST=${state}/L=${city}/O=${org}/OU=${unit}/CN="
 
-[[ "Darwin" -eq "$(uname -s)" ]]  && configFile=/System/Library/OpenSSL/openssl.cnf || configFile=/etc/ssl/openssl.cnf
-baseConfig=$(grep -v ^# ${configFile} | tr -s \\n)
-
 ext="
 [ EXT ]
 extendedKeyUsage=serverAuth,clientAuth
-"
-
-config="
-$baseConfig
-$ext
 "
 
 # Root Certificate Authority and private key
@@ -93,10 +85,11 @@ else
     [[ -z ${verbose} ]] || openssl x509 -noout -text -in root-ca.pem
 fi
 
+
 # Process hosts
 for host in $hosts; do
     # Create a signing request with new private key for host
-	[[ -z ${email} ]] && email="root@${host}" || email="${email}@${host}"
+    [[ -z ${email} ]] && email="root@${host}"
     csr=$(openssl req -new -newkey rsa:${bits} -nodes -keyout ${host}.key -subj "/emailAddress=${email}${subject_template}${host}" -days ${days} -sha256)
     [[ -z ${verbose} ]] || openssl req -noout -text -in <(echo "$csr")
 
