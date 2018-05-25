@@ -429,16 +429,16 @@ sh.print_sizes = function(configDB) {
 
 	var saveDB = db;
 	output(1, "databases:");
-	configDB.databases.find().sort({name: 1}).noTimeOut().forEach(function(db) {
+	configDB.databases.find().sort({name: 1}).noCursorTimeout().forEach(function(db) {
 		output(2, tojson(db, "", true));
 
 		if (db.partitioned) {
 			configDB.collections.find({_id: new RegExp("^" + RegExp.escape(db._id) + "\.")})
-				.noTimeOut()
+				.noCursorTimeout()
 				.sort({_id: 1})
 				.forEach(function(coll) {
 					output(3, coll._id + " chunks:");
-					configDB.chunks.find({"ns": coll._id}).sort({min: 1}).noTimeOut().forEach(function(chunk) {
+					configDB.chunks.find({"ns": coll._id}).sort({min: 1}).noCursorTimeout().forEach(function(chunk) {
 						var out = saveDB.adminCommand({
 							dataSize: coll._id,
 							keyPattern: coll.key,
