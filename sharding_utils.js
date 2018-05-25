@@ -490,7 +490,7 @@ sh.move_data = function(ns, srcShard, dstShard, bytesRequested) {
 
 
     // Process chunks
-    var it = sh._configDB.chunks.find({"ns": ns, shard: srcShard}).noCursorTimeout();
+    var it = sh._configDB.chunks.find({"ns": ns, shard: srcShard}).sort({min: 1}).noCursorTimeout();
     var chunkCount = it.count();
     var chunksProcessed = 0;
     var bytesMoved = 0;
