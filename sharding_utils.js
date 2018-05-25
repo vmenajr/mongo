@@ -1,11 +1,22 @@
+/**
+ * Number.prototype.format(n, x)
+ * 
+ * @param integer n: length of decimal
+ * @param integer x: length of sections
+ */
+Number.prototype.format = function(n, x) {
+    var re = '\\d(?=(\\d{' + (x || 3) + '})+' + (n > 0 ? '\\.' : '$') + ')';
+    return this.toFixed(Math.max(0, ~~n)).replace(new RegExp(re, 'g'), '$&,');
+};
+
 sh._debugMode = true;
 sh._oldhelp=sh.help
 sh._configDB = db.getSiblingDB("config");
 
-sh._resetRebalanceStats = function() {
-    sh._rebalanceStats = { merges: 0, breaks: 0 };
+sh._resetConsolidationStats = function() {
+    sh._consolidationStats = { merges: 0, breaks: 0 };
 }
-sh._resetRebalanceStats();
+sh._resetConsolidationStats();
 
 function getRandomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -22,7 +33,7 @@ sh._sameChunk = function(a, b) {
 sh._contiguousChunks = function(a, b) {
     if (bsonWoCompare(a.max, b.min) === 0) return true;
     print("Non-contiguous Chunks(",tojsononeline(a.max),",", tojsononeline(b.min));
-    sh._rebalanceStats.breaks++;
+    sh._consolidationStats.breaks++;
     return false;
 }
 
@@ -39,12 +50,10 @@ sh._chunkSize = function() {
     return rc;
 }
 
-sh.fakeChunkSizeDividedByTwo = sh._chunkSize() / 2;
-
 sh.chunkDataSize = function(ns, key, kmin, kmax, est) {
     var rc = undefined;
     if ( this._debugMode === true ) {
-        rc = { ok : 1, size: getRandomInt(0, this.fakeChunkSizeDividedByTwo) };
+        rc = { ok : getRandomInt(0, 99), size: getRandomInt(0, sh._chunkSize()) };
     }
     else {
         rc = sh._adminCommand(
@@ -52,6 +61,13 @@ sh.chunkDataSize = function(ns, key, kmin, kmax, est) {
         );
     }
     return rc;
+}
+
+sh._moveChunk = function(chunk, dst) {
+    if ( this._debugMode === true ) {
+        return { ok : getRandomInt(0,99), msg : "Debug Mode" , millis: getRandomInt(100,1000)};
+    }
+    return sh.moveChunk(chunk.ns, chunk.min, dst);
 }
 
 sh._chunkDataSize = function(key, chunk, est = true) {
@@ -67,11 +83,11 @@ sh.mergeChunks = function(ns, lowerBound, upperBound) {
     var rc = undefined;
     if ( this._debugMode === true ) {
         rc = { ok : getRandomInt(0,1), msg : "Debug Mode" }
-        sh._rebalanceStats.merges++;
+        sh._consolidationStats.merges++;
     }
     else {
         rc = this._adminCommand( { mergeChunks: ns, bounds: [ lowerBound, upperBound ] });
-        sh._rebalanceStats.merges++;
+        sh._consolidationStats.merges++;
     }
     return rc;
 }
@@ -104,6 +120,7 @@ sh.help = function() {
 	print("\tsh.moves_by_donor()                      Shard moves sorted by donor")
 	print("\tsh.rates_and_volumes()                   Successful migration rates and volumes")
 	print("\tsh.print_sizes()                         Print data sizes")
+	print("\tsh.move_data(ns, from, to, bytes)        Move chunks in ns from -> to (shards) until 'bytes' are moved")
 }
 
 sh.op_count = function() {
@@ -285,7 +302,7 @@ sh.consolidate_ns_chunks = function(ns) {
     var coll = sh._configDB.collections.findOne({_id: ns});
     var chunksProcessed = 0;
 
-    sh._resetRebalanceStats();
+    sh._resetConsolidationStats();
     print("Collection: ", tojsononeline(coll))
     print("Max Size: ", sh._dataFormat(halfSize))
 
@@ -350,8 +367,8 @@ sh.consolidate_ns_chunks = function(ns) {
 
     print("----------------------------------------");
     print("Chunks :", chunksProcessed);
-    print("Breaks :", sh._rebalanceStats.breaks);
-    print("Merges :", sh._rebalanceStats.merges);
+    print("Breaks :", sh._consolidationStats.breaks);
+    print("Merges :", sh._consolidationStats.merges);
 }
 
 var indentStr = function(indent, s) {
@@ -412,15 +429,16 @@ sh.print_sizes = function(configDB) {
 
 	var saveDB = db;
 	output(1, "databases:");
-	configDB.databases.find().sort({name: 1}).forEach(function(db) {
+	configDB.databases.find().sort({name: 1}).noTimeOut().forEach(function(db) {
 		output(2, tojson(db, "", true));
 
 		if (db.partitioned) {
 			configDB.collections.find({_id: new RegExp("^" + RegExp.escape(db._id) + "\.")})
+				.noTimeOut()
 				.sort({_id: 1})
 				.forEach(function(coll) {
 					output(3, coll._id + " chunks:");
-					configDB.chunks.find({"ns": coll._id}).sort({min: 1}).forEach(function(chunk) {
+					configDB.chunks.find({"ns": coll._id}).sort({min: 1}).noTimeOut().forEach(function(chunk) {
 						var out = saveDB.adminCommand({
 							dataSize: coll._id,
 							keyPattern: coll.key,
@@ -440,5 +458,67 @@ sh.print_sizes = function(configDB) {
 	});
 
 	print(raw);
+}
+
+sh.move_data = function(ns, srcShard, dstShard, bytesRequested) {
+    print("--------------------------------------------------------------------------------");
+    print("Move", ns, sh._dataFormat(bytesRequested), "from", srcShard, "to", dstShard);
+    print("--------------------------------------------------------------------------------");
+
+    var maxSize = sh._chunkSize();
+    var coll = sh._configDB.collections.findOne({_id: ns});
+
+    if (!coll) {
+		print("sh.move_data: namespace", ns, "not found!");
+		return;
+    }
+
+    if (!bytesRequested || typeof(bytesRequested) !== 'number' || bytesRequested < maxSize) {
+		print("sh.move_data: Minimum move size is: ", sh._dataFormat(maxSize));
+		return;
+    }
+
+	if (sh._configDB.shards.findOne({_id: srcShard, state: 1}) === null) {
+		print("sh.move_data: Source shard not found!");
+		return;
+	}
+
+	if (sh._configDB.shards.findOne({_id: dstShard, state: 1}) === null) {
+		print("sh.move_data: Destination shard not found!");
+		return;
+	}
+
+
+    // Process chunks
+    var it = sh._configDB.chunks.find({"ns": ns, shard: srcShard}).noCursorTimeout();
+    var chunkCount = it.count();
+    var chunksProcessed = 0;
+    var bytesMoved = 0;
+
+    while (it.hasNext() && bytesMoved < bytesRequested) {
+        var chunk = it.next();
+        var dataSize = sh._chunkDataSize(coll.key, chunk);
+        //print("Size:", sh._dataFormat(dataSize));
+        chunksProcessed++;
+
+        if ( dataSize <= 0 ) {
+            print("Skipping", chunk._id, "due to an invalid data size");
+            continue;
+        }
+
+        var moveResult = sh._moveChunk(chunk, dstShard);
+        if (moveResult.ok === 0) {
+            print("Skipping", chunk._id, ":", tojsononeline(moveResult));
+            continue;
+        }
+
+        print("Moved", sh._dataFormat(dataSize), "from", chunk._id, "in ", moveResult.millis, "ms");
+        bytesMoved += dataSize;
+    }
+
+    print("--------------------------------------------------------------------------------");
+    print("Chunks processed:", chunksProcessed.format());
+    print("Bytes moved:", sh._dataFormat(bytesMoved));
+    print();
 }
 
