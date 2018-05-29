@@ -491,9 +491,12 @@ sh.move_data = function(ns, srcShard, dstShard, bytesRequested) {
 
     // Process chunks
     var it = sh._configDB.chunks.find({"ns": ns, shard: srcShard}).sort({min: 1}).noCursorTimeout();
-    var chunkCount = it.count();
+    //var chunkCount = it.count();
     var chunksProcessed = 0;
     var bytesMoved = 0;
+    var failedMoves = 0;
+    var failedSizes = 0;
+    var zeroChunks = 0;
 
     while (it.hasNext() && bytesMoved < bytesRequested) {
         var chunk = it.next();
@@ -501,14 +504,22 @@ sh.move_data = function(ns, srcShard, dstShard, bytesRequested) {
         //print("Size:", sh._dataFormat(dataSize));
         chunksProcessed++;
 
-        if ( dataSize <= 0 ) {
+        if ( dataSize < 0 ) {
             print("Skipping", chunk._id, "due to an invalid data size");
+            failedSizes++;
+            continue;
+        }
+
+        if ( dataSize === 0 ) {
+            //print("Skipping ZERO chunk", chunk._id);
+            zeroChunks++;
             continue;
         }
 
         var moveResult = sh._moveChunk(chunk, dstShard);
         if (moveResult.ok === 0) {
             print("Skipping", chunk._id, ":", tojsononeline(moveResult));
+            failedMoves++;
             continue;
         }
 
@@ -516,8 +527,14 @@ sh.move_data = function(ns, srcShard, dstShard, bytesRequested) {
         bytesMoved += dataSize;
     }
 
+    // Close the cursor
+    it.close();
+
     print("--------------------------------------------------------------------------------");
     print("Chunks processed:", chunksProcessed.format());
+    print("Zero chunks:", zeroChunks.format());
+    print("Failed sizes:", failedSizes.format());
+    print("Failed moves:", failedMoves.format());
     print("Bytes moved:", sh._dataFormat(bytesMoved));
     print();
 }
