@@ -30,6 +30,24 @@ sh._sameChunk = function(a, b) {
     return false;
 }
 
+sh._isMaxChunk = function(chunk) {
+    //print("isMaxChunk:", tojsononeline(chunk));
+    var max = chunk.max;
+    for (p in max) {
+        if (max[p] === MaxKey) return true;
+    }
+    return false;
+}
+
+sh._isMinChunk = function(chunk) {
+    //print("isMinChunk:", tojsononeline(chunk));
+    var min = chunk.min;
+    for (p in min) {
+        if (min[p] === MinKey) return true;
+    }
+    return false;
+}
+
 sh._contiguousChunks = function(a, b) {
     if (bsonWoCompare(a.max, b.min) === 0) return true;
     print("Non-contiguous Chunks(",tojsononeline(a.max),",", tojsononeline(b.min));
@@ -53,7 +71,7 @@ sh._chunkSize = function() {
 sh.chunkDataSize = function(ns, key, kmin, kmax, est) {
     var rc = undefined;
     if ( this._debugMode === true ) {
-        rc = { ok : getRandomInt(0, 99), size: getRandomInt(0, sh._chunkSize()) };
+        rc = { ok : getRandomInt(0, 99), size: getRandomInt(0, 1.5*sh._chunkSize()) };
     }
     else {
         rc = sh._adminCommand(
@@ -68,6 +86,13 @@ sh._moveChunk = function(chunk, dst) {
         return { ok : getRandomInt(0,99), msg : "Debug Mode" , millis: getRandomInt(100,1000)};
     }
     return sh.moveChunk(chunk.ns, chunk.min, dst);
+}
+
+sh._splitChunk = function(chunk) {
+    if ( this._debugMode === true ) {
+        return { ok : getRandomInt(0,99), msg : "Debug Mode" , millis: getRandomInt(100,1000)};
+    }
+    return sh.splitFind(chunk.ns, chunk.min);
 }
 
 sh._chunkDataSize = function(key, chunk, est = true) {
@@ -121,6 +146,7 @@ sh.help = function() {
 	print("\tsh.rates_and_volumes()                   Successful migration rates and volumes")
 	print("\tsh.print_sizes()                         Print data sizes")
 	print("\tsh.move_data(ns, from, to, bytes)        Move chunks in ns from -> to (shards) until 'bytes' are moved")
+	print("\tsh.split_to_max(ns)                      Split namespace chunks until they are below the max if possible")
 }
 
 sh.op_count = function() {
@@ -499,10 +525,16 @@ sh.move_data = function(ns, srcShard, dstShard, bytesRequested) {
     var zeroChunks = 0;
 
     while (it.hasNext() && bytesMoved < bytesRequested) {
+        chunksProcessed++;
         var chunk = it.next();
+
+        if ( sh._isMinChunk(chunk) || sh._isMaxChunk(chunk)) {
+            print("Skipping", chunk._id, chunk.min, chunk.max);
+            continue;
+        }
+
         var dataSize = sh._chunkDataSize(coll.key, chunk);
         //print("Size:", sh._dataFormat(dataSize));
-        chunksProcessed++;
 
         if ( dataSize < 0 ) {
             print("Skipping", chunk._id, "due to an invalid data size");
@@ -536,6 +568,94 @@ sh.move_data = function(ns, srcShard, dstShard, bytesRequested) {
     print("Failed sizes:", failedSizes.format());
     print("Failed moves:", failedMoves.format());
     print("Bytes moved:", sh._dataFormat(bytesMoved));
+    print();
+}
+
+sh.split_to_max = function(ns) {
+    const maxSize = sh._chunkSize();
+    print("--------------------------------------------------------------------------------");
+    print("Split", ns, "chunks until they are below", sh._dataFormat(maxSize));
+    print("--------------------------------------------------------------------------------");
+
+    const coll = sh._configDB.collections.findOne({_id: ns});
+
+    if (!coll) {
+		print("sh.split_to_max: namespace", ns, "not found!");
+		return;
+    }
+
+    // Process chunks
+    let chunksProcessed = 0;
+    let failedSplits = 0;
+    let failedSizes = 0;
+    let zeroChunks = 0;
+    let fitChunks = 0;
+    let splitChunks = 0;
+    let query = {"ns": ns};
+    let itr = sh._configDB.chunks.find(query).sort({_id:1});
+
+     while (itr.hasNext()) {
+        //print("Starting with", tojsononeline(query));
+
+        while (itr.hasNext()) {
+            chunksProcessed++;
+            const chunk = itr.next();
+            //print("Processing:", chunk._id);
+
+            if ( sh._isMinChunk(chunk) || sh._isMaxChunk(chunk)) {
+                print("Skipping", chunk._id, tojsononeline(chunk.min), tojsononeline(chunk.max));
+                continue;
+            }
+
+            const dataSize = sh._chunkDataSize(coll.key, chunk);
+
+            if ( dataSize < 0 ) {
+                print("Skipping", chunk._id, "due to an invalid data size");
+                failedSizes++;
+                continue;
+            }
+
+            if ( dataSize === 0 ) {
+                //print("Skipping", chunk._id, "due to ZERO size");
+                zeroChunks++;
+                continue;
+            }
+
+            if ( dataSize < maxSize ) {
+                //print("Skipping", chunk._id, "due to FIT size");
+                fitChunks++;
+                continue;
+            }
+
+            const splitResult = sh._splitChunk(chunk);
+            if (splitResult.ok === 0) {
+                print("Skipping", chunk._id, ":", tojsononeline(splitResult));
+                failedSplits++;
+                continue;
+            }
+
+            splitChunks++;
+            print("Split", chunk._id, "sized", sh._dataFormat(dataSize));
+
+            // We need to restart the query from this point
+            // such that we process both of these chunks again (current
+            // and newly born)
+            itr.close();
+            query = {_id: { $gte: chunk._id} };
+            itr = sh._configDB.chunks.find(query).sort({_id:1});
+            break;
+        }
+    }
+
+    itr.close();
+
+    print("--------------------------------------------------------------------------------");
+    print("Chunks processed:", chunksProcessed.format());
+    print("Zero chunks:", zeroChunks.format());
+    print("Fit chunks:", fitChunks.format());
+    print("Split chunks:", splitChunks.format());
+    print("Failed sizes:", failedSizes.format());
+    print("Failed splits:", failedSplits.format());
     print();
 }
 
