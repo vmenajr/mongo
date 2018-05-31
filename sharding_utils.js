@@ -464,7 +464,7 @@ sh.print_sizes = function(configDB) {
 				.sort({_id: 1})
 				.forEach(function(coll) {
 					output(3, coll._id + " chunks:");
-					configDB.chunks.find({"ns": coll._id}).sort({min: 1}).noCursorTimeout().forEach(function(chunk) {
+					configDB.chunks.find({"ns": coll._id}).sort({min: 1}).forEach(function(chunk) {
 						var out = saveDB.adminCommand({
 							dataSize: coll._id,
 							keyPattern: coll.key,
@@ -516,7 +516,7 @@ sh.move_data = function(ns, srcShard, dstShard, bytesRequested) {
 
 
     // Process chunks
-    var it = sh._configDB.chunks.find({"ns": ns, shard: srcShard}).sort({min: 1}).noCursorTimeout();
+    var it = sh._configDB.chunks.find({"ns": ns, shard: srcShard}).sort({min: 1});
     //var chunkCount = it.count();
     var chunksProcessed = 0;
     var bytesMoved = 0;
