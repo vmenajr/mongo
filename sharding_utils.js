@@ -516,17 +516,17 @@ sh.move_data = function(ns, srcShard, dstShard, bytesRequested) {
 
 
     // Process chunks
-    var it = sh._configDB.chunks.find({"ns": ns, shard: srcShard}).sort({min: 1});
-    //var chunkCount = it.count();
+    var itr = sh._configDB.chunks.find({"ns": ns, shard: srcShard}).sort({min: 1});
+    //var chunkCount = itr.count();
     var chunksProcessed = 0;
     var bytesMoved = 0;
     var failedMoves = 0;
     var failedSizes = 0;
     var zeroChunks = 0;
 
-    while (it.hasNext() && bytesMoved < bytesRequested) {
+    while (itr.hasNext() && bytesMoved < bytesRequested) {
         chunksProcessed++;
-        var chunk = it.next();
+        var chunk = itr.next();
 
         if ( sh._isMinChunk(chunk) || sh._isMaxChunk(chunk)) {
             print("Skipping", chunk._id, chunk.min, chunk.max);
@@ -560,7 +560,7 @@ sh.move_data = function(ns, srcShard, dstShard, bytesRequested) {
     }
 
     // Close the cursor
-    it.close();
+    itr.close();
 
     print("--------------------------------------------------------------------------------");
     print("Chunks processed:", chunksProcessed.format());
