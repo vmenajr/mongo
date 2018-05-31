@@ -127,6 +127,14 @@ sh._mergeChunks = function(firstChunk, lastChunk) {
     return rc;
 }
 
+sh._findMinKeyChunk = function(ns) {
+    return sh._configDB.chunks.find({"ns": ns}).sort({min:1}).limit(1).next();
+}
+
+sh._findMaxKeyChunk = function(ns) {
+    return sh._configDB.chunks.find({"ns": ns}).sort({min:-1}).limit(1).next();
+}
+
 function sendtoscreen(obj) {
 	printjson(obj.toArray())
 }
@@ -147,6 +155,7 @@ sh.help = function() {
 	print("\tsh.print_sizes()                         Print data sizes")
 	print("\tsh.move_data(ns, from, to, bytes)        Move chunks in ns from -> to (shards) until 'bytes' are moved")
 	print("\tsh.split_to_max(ns)                      Split namespace chunks until they are below the max if possible")
+	print("\tsh.print_bounds(ns)                      Print namespace sharding boundary chunks")
 }
 
 sh.op_count = function() {
@@ -657,5 +666,17 @@ sh.split_to_max = function(ns) {
     print("Failed sizes:", failedSizes.format());
     print("Failed splits:", failedSplits.format());
     print();
+}
+
+sh.print_bounds = function(ns) {
+    const coll = sh._configDB.collections.findOne({_id: ns});
+
+    if (!coll) {
+		print("sh.print_bounds: namespace", ns, "not found!");
+		return;
+    }
+
+    printjson(sh._findMinKeyChunk(ns));
+    printjson(sh._findMaxKeyChunk(ns));
 }
 
