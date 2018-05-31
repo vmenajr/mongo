@@ -90,7 +90,7 @@ sh._moveChunk = function(chunk, dst) {
 
 sh._splitChunk = function(chunk) {
     if ( this._debugMode === true ) {
-        return { ok : getRandomInt(0,99), msg : "Debug Mode" , millis: getRandomInt(100,1000)};
+        return { ok : getRandomInt(0,99), msg : "Debug Mode" };
     }
     return sh.splitFind(chunk.ns, chunk.min);
 }
