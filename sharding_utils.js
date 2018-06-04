@@ -682,9 +682,7 @@ sh.print_bounds = function(ns) {
 }
 
 sh.split_maxkey = function(ns, query) {
-    print("--------------------------------------------------------------------------------");
     print("Split", ns, "at", tojsononeline(query));
-    print("--------------------------------------------------------------------------------");
 
     let maxChunk = sh._findMaxKeyChunk(ns);
 
@@ -696,29 +694,4 @@ sh.split_maxkey = function(ns, query) {
     return sh.splitAt(ns,  query);
 }
 
-function presplit(ns, shards, startingDateString, secondsIncrement = 60*60, secondsTotal = 60*60*24) {
-    print("--------------------------------------------------------------------------------");
-    print("Pre-split", ns, startingDateString, secondsIncrement, secondsTotal);
-    print("--------------------------------------------------------------------------------");
-    const startDate = new Date(startingDateString);
-    let   startSeconds = startDate.getTime() / 1000 | 0;
-    const endSeconds = startSeconds + secondsTotal;
-    let   shardList = {
-        names : shards,
-        index : -1,
-        nextShardName : function() {
-            this.index++;
-            if (this.index >= this.names.length) this.index = 0;
-            return this.names[this.index];
-        }
-    };
-    
-    for (startSeconds; startSeconds < endSeconds; startSeconds += secondsIncrement) {
-        const oid = ObjectId(startSeconds.toString(16).pad(24,true,0));
-        //const min = {files_id: oid, n:0};
-        const min = {_id: oid};
-        printjson(sh.split_maxkey(ns, min));
-        printjson(sh.moveChunk(ns, min, shardList.nextShardName()));
-    }
-}
 
