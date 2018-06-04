@@ -156,6 +156,7 @@ sh.help = function() {
 	print("\tsh.move_data(ns, from, to, bytes)        Move chunks in ns from -> to (shards) until 'bytes' are moved")
 	print("\tsh.split_to_max(ns)                      Split namespace chunks until they are below the max if possible")
 	print("\tsh.print_bounds(ns)                      Print namespace sharding boundary chunks")
+	print("\tsh.split_maxkey(ns,query)                Split maxkey chunk at the given shard key")
 }
 
 sh.op_count = function() {
@@ -678,5 +679,46 @@ sh.print_bounds = function(ns) {
 
     printjson(sh._findMinKeyChunk(ns));
     printjson(sh._findMaxKeyChunk(ns));
+}
+
+sh.split_maxkey = function(ns, query) {
+    print("--------------------------------------------------------------------------------");
+    print("Split", ns, "at", tojsononeline(query));
+    print("--------------------------------------------------------------------------------");
+
+    let maxChunk = sh._findMaxKeyChunk(ns);
+
+    if (!maxChunk) {
+		print("sh.split_maxkey_at: maxKey not found!");
+		return;
+    }
+
+    return sh.splitAt(ns,  query);
+}
+
+function presplit(ns, shards, startingDateString, secondsIncrement = 60*60, secondsTotal = 60*60*24) {
+    print("--------------------------------------------------------------------------------");
+    print("Pre-split", ns, startingDateString, secondsIncrement, secondsTotal);
+    print("--------------------------------------------------------------------------------");
+    const startDate = new Date(startingDateString);
+    let   startSeconds = startDate.getTime() / 1000 | 0;
+    const endSeconds = startSeconds + secondsTotal;
+    let   shardList = {
+        names : shards,
+        index : -1,
+        nextShardName : function() {
+            this.index++;
+            if (this.index >= this.names.length) this.index = 0;
+            return this.names[this.index];
+        }
+    };
+    
+    for (startSeconds; startSeconds < endSeconds; startSeconds += secondsIncrement) {
+        const oid = ObjectId(startSeconds.toString(16).pad(24,true,0));
+        //const min = {files_id: oid, n:0};
+        const min = {_id: oid};
+        printjson(sh.split_maxkey(ns, min));
+        printjson(sh.moveChunk(ns, min, shardList.nextShardName()));
+    }
 }
 
