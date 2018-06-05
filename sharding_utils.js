@@ -156,7 +156,7 @@ sh.help = function() {
 	print("\tsh.move_data(ns, from, to, bytes)        Move chunks in ns from -> to (shards) until 'bytes' are moved")
 	print("\tsh.split_to_max(ns)                      Split namespace chunks until they are below the max if possible")
 	print("\tsh.print_bounds(ns)                      Print namespace sharding boundary chunks")
-	print("\tsh.split_maxkey(ns,query)                Split maxkey chunk at the given shard key")
+	print("\tsh.split_topchunk(ns)                    Split the top chunk (maxkey) down the middle")
 }
 
 sh.op_count = function() {
@@ -681,7 +681,7 @@ sh.print_bounds = function(ns) {
     printjson(sh._findMaxKeyChunk(ns));
 }
 
-sh.split_maxkey = function(ns, query) {
+sh.split_topchunk = function(ns) {
     print("Split", ns, "at", tojsononeline(query));
 
     let maxChunk = sh._findMaxKeyChunk(ns);
@@ -691,7 +691,7 @@ sh.split_maxkey = function(ns, query) {
 		return;
     }
 
-    return sh.splitAt(ns,  query);
+    return sh._splitChunk(chunk);
 }
 
 
