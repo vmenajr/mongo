@@ -88,10 +88,11 @@ sh._moveChunk = function(chunk, dst) {
     return sh.moveChunk(chunk.ns, chunk.min, dst);
 }
 
-sh._splitChunk = function(chunk) {
+sh._splitChunk = function(chunk, query) {
     if ( this._debugMode === true ) {
         return { ok : getRandomInt(0,99), msg : "Debug Mode" };
     }
+    if (query) return sh.splitAt(chunk.ns, query);
     return sh.splitFind(chunk.ns, chunk.min);
 }
 
