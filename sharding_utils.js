@@ -13,6 +13,7 @@ sh._debugMode = true;
 sh._oldhelp=sh.help
 sh._configDB = db.getSiblingDB("config");
 
+
 sh._resetConsolidationStats = function() {
     sh._consolidationStats = { merges: 0, breaks: 0 };
 }
@@ -20,6 +21,12 @@ sh._resetConsolidationStats();
 
 function getRandomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+sh._retryDelay = function() {
+    let rc = 10*1000;
+    if (this._debugMode) rc = 1000;
+    return rc;
 }
 
 sh._sameChunk = function(a, b) {
@@ -71,7 +78,7 @@ sh._chunkSize = function() {
 sh.data_size = function(ns, key, kmin, kmax, est = true) {
     var rc = undefined;
     if ( this._debugMode === true ) {
-        rc = { ok : getRandomInt(0, 99), size: getRandomInt(0, 1024*1024*1024);
+        rc = { ok : getRandomInt(0, 4), size: getRandomInt(0, 1024*1024*1024) };
     }
     else {
         rc = sh._adminCommand(
@@ -81,23 +88,63 @@ sh.data_size = function(ns, key, kmin, kmax, est = true) {
     return rc;
 }
 
-sh._moveChunk = function(chunk, dst) {
-    if ( this._debugMode === true ) {
-        return { ok : getRandomInt(0,99), msg : "Debug Mode" , millis: getRandomInt(100,1000)};
-    }
-    return sh.moveChunk(chunk.ns, chunk.min, dst);
+sh.move_chunk = function(ns, min, dst) {
+    const fn = function() {
+        if ( sh._debugMode === true ) {
+            return { ok : getRandomInt(0,4), msg : "Debug Mode" , millis: getRandomInt(100,1000)};
+        }
+        return sh.moveChunk(ns, min, dst);
+    };
+
+    // Retry an error up to 6 times
+    let retries = 6;
+    let rc = undefined;
+
+    while (retries > 0) {
+        retries--;
+        rc = fn();
+        if (rc.ok !== 0) break;
+        print("move_chunk retrying(", retries, "):", tojsononeline(rc));
+        sleep(sh._retryDelay());
+    } 
+
+    return rc;
 }
 
-sh._splitChunk = function(chunk, query) {
-    if ( this._debugMode === true ) {
-        return { ok : getRandomInt(0,99), msg : "Debug Mode" };
-    }
-    if (query) return sh.splitAt(chunk.ns, query);
-    return sh.splitFind(chunk.ns, chunk.min);
+sh._moveChunk = function(chunk, dst) {
+    return sh.move_chunk(chunk.ns, chunk.min, dst);
+}
+
+sh.split_chunk = function(ns, at, in_half=true) {
+    const fn = function() {
+        if ( sh._debugMode === true ) {
+            return { ok : getRandomInt(0,4), msg : "Debug Mode" };
+        }
+        if (in_half) return sh.splitFind(ns, at);
+        return sh.splitAt(ns, at);
+    };
+
+    // Retry an error up to 6 times
+    let retries = 6;
+    let rc = undefined;
+
+    while (retries > 0) {
+        retries--;
+        rc = fn();
+        if (rc.ok !== 0) break;
+        print("_split retrying(", retries, "):", tojsononeline(rc));
+        sleep(sh._retryDelay());
+    } 
+
+    return rc;
+}
+
+sh._splitChunk = function(chunk, at=undefined) {
+    return sh.splitChunk(chunk.ns, chunk.min, (at === undefined));
 }
 
 sh._chunkDataSize = function(key, chunk, est = true) {
-    var result = this.data_size(chunk.ns, key, chunk.min, chunk.max, est);
+    var result = sh.data_size(chunk.ns, key, chunk.min, chunk.max, est);
     if ( result.ok === 0 ) {
         printjson(result);
         return -1;
@@ -105,14 +152,14 @@ sh._chunkDataSize = function(key, chunk, est = true) {
     return result.size;
 }
 
-sh.mergeChunks = function(ns, lowerBound, upperBound) {
+sh.merge_chunks = function(ns, lowerBound, upperBound) {
     var rc = undefined;
-    if ( this._debugMode === true ) {
-        rc = { ok : getRandomInt(0,1), msg : "Debug Mode" }
+    if ( sh._debugMode === true ) {
+        rc = { ok : getRandomInt(0,4), msg : "Debug Mode" }
         sh._consolidationStats.merges++;
     }
     else {
-        rc = this._adminCommand( { mergeChunks: ns, bounds: [ lowerBound, upperBound ] });
+        rc = sh._adminCommand( { merge_chunks: ns, bounds: [ lowerBound, upperBound ] });
         sh._consolidationStats.merges++;
     }
     return rc;
@@ -121,7 +168,7 @@ sh.mergeChunks = function(ns, lowerBound, upperBound) {
 sh._mergeChunks = function(firstChunk, lastChunk) {
     var rc = { ok : 1 };
     if ( firstChunk && lastChunk && !sh._sameChunk(firstChunk, lastChunk) ) {
-        rc = this.mergeChunks(firstChunk.ns, firstChunk.min, lastChunk.max);
+        rc = sh.merge_chunks(firstChunk.ns, firstChunk.min, lastChunk.max);
         print("Merge Attempt:", firstChunk._id, ",", lastChunk._id, "=", rc.ok);
     }
     if (rc.ok !== 1) printjson(rc);
@@ -683,7 +730,7 @@ sh.print_bounds = function(ns) {
 }
 
 sh.split_topchunk = function(ns) {
-    print("Split", ns, "at", tojsononeline(query));
+    print("split_topchunk", ns);
 
     let maxChunk = sh._findMaxKeyChunk(ns);
 
@@ -692,7 +739,7 @@ sh.split_topchunk = function(ns) {
 		return;
     }
 
-    return sh._splitChunk(chunk);
+    return sh._splitChunk(maxChunk);
 }
 
 
