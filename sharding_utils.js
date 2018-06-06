@@ -68,10 +68,10 @@ sh._chunkSize = function() {
     return rc;
 }
 
-sh.chunkDataSize = function(ns, key, kmin, kmax, est) {
+sh.data_size = function(ns, key, kmin, kmax, est = true) {
     var rc = undefined;
     if ( this._debugMode === true ) {
-        rc = { ok : getRandomInt(0, 99), size: getRandomInt(0, 1.5*sh._chunkSize()) };
+        rc = { ok : getRandomInt(0, 99), size: getRandomInt(0, 1024*1024*1024);
     }
     else {
         rc = sh._adminCommand(
@@ -96,7 +96,7 @@ sh._splitChunk = function(chunk) {
 }
 
 sh._chunkDataSize = function(key, chunk, est = true) {
-    var result = this.chunkDataSize(chunk.ns, key, chunk.min, chunk.max, est);
+    var result = this.data_size(chunk.ns, key, chunk.min, chunk.max, est);
     if ( result.ok === 0 ) {
         printjson(result);
         return -1;
