@@ -140,7 +140,7 @@ sh.split_chunk = function(ns, at, in_half=true) {
 }
 
 sh._splitChunk = function(chunk, at=undefined) {
-    return sh.splitChunk(chunk.ns, chunk.min, (at === undefined));
+    return sh.split_chunk(chunk.ns, chunk.min, (at === undefined));
 }
 
 sh._chunkDataSize = function(key, chunk, est = true) {
