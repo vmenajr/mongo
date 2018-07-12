@@ -16,6 +16,7 @@
   <modules>
     <module>my-app</module>
     <module>ssl</module>
+    <module>new_rsnode</module>
   </modules>
 
   <dependencies>
