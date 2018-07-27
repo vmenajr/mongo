@@ -43,6 +43,8 @@ public class App
 {
   @Parameter(names = { "-uri", }, description = "MongoDB URi")
   private String uri;
+  @Parameter(names = { "-fromString", }, description = "Pass token on the command line")
+  private String token;
   private MongoCollection<Document> coll;
   private Random rnd = new Random();
   
@@ -53,7 +55,12 @@ public class App
       .build()
       .parse(args);
     try {
-      app.run();
+		if (!app.token.isEmpty()) {
+			app.runWithString();
+		}
+		else {
+			app.run();
+		}
     }
     catch (InterruptedException e) {
       System.out.println("App interrupted");
@@ -90,7 +97,6 @@ public class App
     MongoClient mongoClient = new MongoClient(connectionString);
     MongoDatabase database = mongoClient.getDatabase("test");
     coll = database.getCollection("c");
-    rnd = new Random();
 
     Block<ChangeStreamDocument<Document>> printBlock = new Block<>() {
         @Override
@@ -156,6 +162,31 @@ public class App
         }
     }
 
+    System.out.println();
+    mongoClient.close();
+  }
+
+  public void runWithString() throws InterruptedException {
+    MongoClientURI connectionString = new MongoClientURI(uri);
+    MongoClient mongoClient = new MongoClient(connectionString);
+    MongoDatabase database = mongoClient.getDatabase("test");
+    coll = database.getCollection("c");
+    System.out.println();
+    System.out.println("InputToken: "+token);
+
+    Block<ChangeStreamDocument<Document>> printBlock = new Block<>() {
+        @Override
+        public void apply(final ChangeStreamDocument<Document> changeStreamDocument) {
+            System.out.println(changeStreamDocument);
+            System.out.println();
+        }
+    };
+
+    // Get token and save it to string variable
+	BsonDocument rt = BsonDocument.parse(token);
+	MongoCursor<ChangeStreamDocument<Document>> cursor = coll.watch().resumeAfter(rt).iterator();
+	ChangeStreamDocument<Document> next = cursor.next();
+	printBlock.apply(next);
     System.out.println();
     mongoClient.close();
   }
