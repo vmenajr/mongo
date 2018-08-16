@@ -13,6 +13,19 @@ sh._debugMode = true;
 sh._oldhelp=sh.help
 sh._configDB = db.getSiblingDB("config");
 
+sh.enable_debug = function() {
+    sh._debugMode = true;
+    sh.is_debug_enabled();
+}
+
+sh.disable_debug = function() {
+    sh._debugMode = false;
+    sh.is_debug_enabled();
+}
+
+sh.is_debug_enabled = function() {
+    print("Debug Mode: ", sh._debugMode);
+}
 
 sh._resetConsolidationStats = function() {
     sh._consolidationStats = { merges: 0, breaks: 0 };
@@ -742,74 +755,46 @@ sh.split_topchunk = function(ns) {
     return sh._splitChunk(maxChunk);
 }
 
-sh.remove_empty_chunks = function(ns) {
+/**
+ * presplit GridFS
+ *
+ * Splits the GridFS namespace chunks and distributes them randomly amongst the named shards
+ * 
+ * @param ns:           Namespace
+ * @param shards:       Array of shard id strings used as the round-robin target for chunks
+ * @param startDate:    Date object or string for the split start
+ * @param endDate:      Date object or string to serve as the upper bound for the split
+ * @param inc:          Number of seconds between splits (Defaults to one hour)
+ */
+sh.presplit_gridfs = function(ns, shards, startDate, endDate, inc = 60*60) {
     print("--------------------------------------------------------------------------------");
-    print("sh.remove_empty_chunks", ns);
+    print("Pre-split GridFS", ns, startDate, endDate, inc);
     print("--------------------------------------------------------------------------------");
-    const coll = sh._configDB.collections.findOne({_id: ns});
-    let chunksProcessed = 0;
-    let failedSizes = 0;
-    let zeroChunks = 0;
+    if (shards.length <= 0) throw Error("Shard list is invalid");
+    if (typeof(startDate) === "string") startDate = new Date(startDate);
+    if (typeof(endDate)   === "string") endDate   = new Date(endDate);
+    let   startSeconds = startDate.getTime() / 1000 | 0;
+    const endSeconds = endDate.getTime() / 1000 | 0;
+    const nextShardName = function() {
+        return shards[getRandomInt(0, shards.length-1)];
+    };
+    
+    for (startSeconds; startSeconds < endSeconds; startSeconds += inc) {
+        const oid = ObjectId(startSeconds.toString(16).pad(24,true,0));
+        const min = {files_id: oid, n:0};
 
-    if (!coll) {
-		print("sh.remove_empty_chunks: namespace", ns, "not found!");
-		return;
+        const splitResult = sh.split_chunk(ns,  min, false);
+        if (splitResult.ok === 0) {
+            print("Splitting", min, "failed:", tojsononeline(splitResult));
+            continue;
+        }
+
+        const shardName = nextShardName();
+        const moveResult = sh.move_chunk(ns, min, shardName);
+        if (moveResult.ok === 0) {
+            print("Moving", min, "to", shardName, "failed:", tojsononeline(moveResult));
+        }
+
+        print(oid.getTimestamp().toISOString(), ":", tojsononeline(min), "at", shardName);
     }
-
-    // Find zero chunks
-    sh._configDB.chunks.find({"ns": ns}).sort({min: 1}).forEach(function(chunk) {
-        chunksProcessed++;
-        var dataSize = sh._chunkDataSize(coll.key, chunk);
-        //print("Chunk", chunk._id, "Size:", sh._dataFormat(dataSize));
-
-        if ( dataSize < 0 ) {
-            print("Skipping", chunk._id, "due to an invalid data size");
-            failedSizes++;
-            return;
-        }
-
-        if ( dataSize > 0 ) {
-            //print("Skipping NON-ZERO", chunk._id);
-            return;
-        }
-        zeroChunks++;
-
-        // Ensure zero chunk is on the same shard as its merge chunk
-        if ( !sh._sameChunk(prevChunk, chunk) && !sh._contiguousChunks(prevChunk, chunk) ) {
-            sh._mergeChunks(startingChunk, prevChunk)
-            startingChunk = prevChunk = chunk;
-            runningSize = 0;
-        }
-
-        // Gather chunk info
-        var dataSize = sh._chunkDataSize(coll.key, chunk);
-        print("Size:", sh._dataFormat(dataSize));
-
-        // Failed to get the size for the chunk or the chunk 
-        // is already big enough so we coalesce what we have
-        // until now and skip this chunk
-        if ( dataSize < 0 || dataSize > halfSize ) {
-            sh._mergeChunks(startingChunk, prevChunk)
-            startingChunk = undefined;
-            return;
-        }
-
-        // Commulative chunks must be merged
-        // startingChunk + prevChunk < halfSize and currentChunk is big then c1+c2+c3 > maxSize?
-        // 31 x 1 MiB chunks + 1 x 31 MiB = 62 MiB < maxSize
-        if ( runningSize > halfSize ) {
-            sh._mergeChunks(startingChunk, prevChunk)
-            startingChunk = chunk;
-            runningSize = 0;
-        }
-
-        prevChunk = chunk;
-        runningSize += dataSize;
-    });
-
-    print("----------------------------------------");
-    print("Chunks :", chunksProcessed);
-    print("Breaks :", sh._consolidationStats.breaks);
-    print("Merges :", sh._consolidationStats.merges);
 }
-
