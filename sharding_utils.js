@@ -742,4 +742,74 @@ sh.split_topchunk = function(ns) {
     return sh._splitChunk(maxChunk);
 }
 
+sh.remove_empty_chunks = function(ns) {
+    print("--------------------------------------------------------------------------------");
+    print("sh.remove_empty_chunks", ns);
+    print("--------------------------------------------------------------------------------");
+    const coll = sh._configDB.collections.findOne({_id: ns});
+    let chunksProcessed = 0;
+    let failedSizes = 0;
+    let zeroChunks = 0;
+
+    if (!coll) {
+		print("sh.remove_empty_chunks: namespace", ns, "not found!");
+		return;
+    }
+
+    // Find zero chunks
+    sh._configDB.chunks.find({"ns": ns}).sort({min: 1}).forEach(function(chunk) {
+        chunksProcessed++;
+        var dataSize = sh._chunkDataSize(coll.key, chunk);
+        //print("Chunk", chunk._id, "Size:", sh._dataFormat(dataSize));
+
+        if ( dataSize < 0 ) {
+            print("Skipping", chunk._id, "due to an invalid data size");
+            failedSizes++;
+            return;
+        }
+
+        if ( dataSize > 0 ) {
+            //print("Skipping NON-ZERO", chunk._id);
+            return;
+        }
+        zeroChunks++;
+
+        // Ensure zero chunk is on the same shard as its merge chunk
+        if ( !sh._sameChunk(prevChunk, chunk) && !sh._contiguousChunks(prevChunk, chunk) ) {
+            sh._mergeChunks(startingChunk, prevChunk)
+            startingChunk = prevChunk = chunk;
+            runningSize = 0;
+        }
+
+        // Gather chunk info
+        var dataSize = sh._chunkDataSize(coll.key, chunk);
+        print("Size:", sh._dataFormat(dataSize));
+
+        // Failed to get the size for the chunk or the chunk 
+        // is already big enough so we coalesce what we have
+        // until now and skip this chunk
+        if ( dataSize < 0 || dataSize > halfSize ) {
+            sh._mergeChunks(startingChunk, prevChunk)
+            startingChunk = undefined;
+            return;
+        }
+
+        // Commulative chunks must be merged
+        // startingChunk + prevChunk < halfSize and currentChunk is big then c1+c2+c3 > maxSize?
+        // 31 x 1 MiB chunks + 1 x 31 MiB = 62 MiB < maxSize
+        if ( runningSize > halfSize ) {
+            sh._mergeChunks(startingChunk, prevChunk)
+            startingChunk = chunk;
+            runningSize = 0;
+        }
+
+        prevChunk = chunk;
+        runningSize += dataSize;
+    });
+
+    print("----------------------------------------");
+    print("Chunks :", chunksProcessed);
+    print("Breaks :", sh._consolidationStats.breaks);
+    print("Merges :", sh._consolidationStats.merges);
+}
 
