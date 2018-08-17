@@ -776,7 +776,19 @@ sh.presplit_gridfs = function(ns, shards, startDate, endDate, inc = 60*60) {
     let   startSeconds = startDate.getTime() / 1000 | 0;
     const endSeconds = endDate.getTime() / 1000 | 0;
     const nextShardName = function() {
-        return shards[getRandomInt(0, shards.length-1)];
+        if( typeof nextShardName.prev == 'undefined' ) {
+            nextShardName.prev = "";
+        }
+
+        let next = ""
+        do {
+            next = shards[getRandomInt(0, shards.length-1)];
+        } while (next === nextShardName.prev);
+
+        nextShardName.prev = next;
+
+        //return shards[getRandomInt(0, shards.length-1)];
+        return next;
     };
     
     for (startSeconds; startSeconds < endSeconds; startSeconds += inc) {
