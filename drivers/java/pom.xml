@@ -18,6 +18,8 @@
     <module>ssl</module>
     <module>new_rsnode</module>
     <module>changestream</module>
+    <module>gridfs</module>
+    <module>timed_print</module>
   </modules>
 
   <dependencies>
