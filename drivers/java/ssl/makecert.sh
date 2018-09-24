@@ -7,6 +7,7 @@ city="SomeCity"
 org="SomeOrganization"
 unit="SomeOrganizationalUnit"
 hosts=$(hostname -f)
+name=''
 
 abend() {
     echo "Abend: $@"
@@ -15,7 +16,7 @@ abend() {
 }
 
 usage() { 
-    echo "Usage: $0 [-d days] [-s state] [-c city] [-o org] [-u unit] [-h hosts] [-e email] [-v]"
+    echo "Usage: $0 [-n name] [-d days] [-s state] [-c city] [-o org] [-u unit] [-h hosts] [-e email] [-v]"
     echo "  bits:    Number of bits ($bits)"
     echo "  days:    Number of days ($days)"
     echo "  country: Country code ($country)"
@@ -26,12 +27,13 @@ usage() {
     echo "  hosts:   Fully qualified domain name for the server(s) using this cert ($host)."
     echo "           For multiple certs surround with quotes (e.g. -h \"host1 host2 ...\")"
     echo "  email:   Email associated with the cert ($email)"
+    echo "  name :   Common name ($name)"
     echo "  -v   :   Verbose. Print certs as they are generated"
     echo
     exit 1
 }
 
-while getopts ":b:d:k:s:c:o:u:h:e:v" o; do
+while getopts ":b:d:k:s:c:o:u:h:e:n:v" o; do
     case "${o}" in
         b)
             bits=${OPTARG}
@@ -60,6 +62,9 @@ while getopts ":b:d:k:s:c:o:u:h:e:v" o; do
         e)
             email=${OPTARG}
             ;;
+        n)
+            name=${OPTARG}
+            ;;
         v)
             verbose=1
             ;;
@@ -72,10 +77,13 @@ shift $((OPTIND-1))
 
 subject_template="/C=${country}/ST=${state}/L=${city}/O=${org}/OU=${unit}/CN="
 
-ext="
+ext_template="
 [ EXT ]
 extendedKeyUsage=serverAuth,clientAuth
-"
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = "
 
 # Root Certificate Authority and private key
 if [[ -f root-ca.pem && -f root-ca.key ]]; then
@@ -88,9 +96,13 @@ fi
 
 # Process hosts
 for host in $hosts; do
+	# locals
+	[[ -z "${name}" ]] && name=${host}
+    ext="${ext_template}${host}"
+
     # Create a signing request with new private key for host
     [[ -z ${email} ]] && email="root@${host}"
-    csr=$(openssl req -new -newkey rsa:${bits} -nodes -keyout ${host}.key -subj "/emailAddress=${email}${subject_template}${host}" -days ${days} -sha256)
+    csr=$(openssl req -new -newkey rsa:${bits} -nodes -keyout ${host}.key -subj "/emailAddress=${email}${subject_template}${name}" -days ${days} -sha256)
     [[ -z ${verbose} ]] || openssl req -noout -text -in <(echo "$csr")
 
     # Create certificate signed with its private key and issued by our RootCA
