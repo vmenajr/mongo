@@ -97,12 +97,13 @@ fi
 # Process hosts
 for host in $hosts; do
 	# locals
-	[[ -z "${name}" ]] && name=${host}
+    CN=${host}
+	[[ -z "${name}" ]] || CN=${name}
     ext="${ext_template}${host}"
 
     # Create a signing request with new private key for host
     [[ -z ${email} ]] && email="root@${host}"
-    csr=$(openssl req -new -newkey rsa:${bits} -nodes -keyout ${host}.key -subj "/emailAddress=${email}${subject_template}${name}" -days ${days} -sha256)
+    csr=$(openssl req -new -newkey rsa:${bits} -nodes -keyout ${host}.key -subj "/emailAddress=${email}${subject_template}${CN}" -days ${days} -sha256)
     [[ -z ${verbose} ]] || openssl req -noout -text -in <(echo "$csr")
 
     # Create certificate signed with its private key and issued by our RootCA
