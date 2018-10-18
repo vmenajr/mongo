@@ -410,7 +410,7 @@ sh.consolidate_ns_chunks = function(ns) {
     print("Max Size: ", sh._dataFormat(halfSize))
 
     // Process chunks in each shard
-    sh._configDB.shards.find({state: 1}, {_id:1}).noCursorTimeout().forEach(function(shard) {
+    sh._configDB.shards.find({state: 1}, {_id:1}).toArray().forEach(function(shard) {
         var startingChunk = undefined;  // Drop anchor
         var prevChunk = undefined;      // Previous chunk (current chunk is part of function)
         var runningSize = 0;            // Trailing aggregate chunk size
