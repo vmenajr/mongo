@@ -9,6 +9,16 @@ Number.prototype.format = function(n, x) {
     return this.toFixed(Math.max(0, ~~n)).replace(new RegExp(re, 'g'), '$&,');
 };
 
+/**
+ * Generate a random integer between min+max inclusive
+ * 
+ * @param integer min: Starting range
+ * @param integer max: End range
+ */
+function getRandomInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
 sh._debugMode = true;
 sh._oldhelp=sh.help
 sh._configDB = db.getSiblingDB("config");
@@ -25,15 +35,6 @@ sh.disable_debug = function() {
 
 sh.is_debug_enabled = function() {
     print("Debug Mode: ", sh._debugMode);
-}
-
-sh._resetConsolidationStats = function() {
-    sh._consolidationStats = { merges: 0, breaks: 0 };
-}
-sh._resetConsolidationStats();
-
-function getRandomInt(min, max) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 sh._retryDelay = function() {
@@ -71,7 +72,6 @@ sh._isMinChunk = function(chunk) {
 sh._contiguousChunks = function(a, b) {
     if (bsonWoCompare(a.max, b.min) === 0) return true;
     print("Non-contiguous Chunks(",tojsononeline(a.max),",", tojsononeline(b.min));
-    sh._consolidationStats.breaks++;
     return false;
 }
 
@@ -169,11 +169,9 @@ sh.merge_chunks = function(ns, lowerBound, upperBound) {
     var rc = undefined;
     if ( sh._debugMode === true ) {
         rc = { ok : getRandomInt(0,4), msg : "Debug Mode" }
-        sh._consolidationStats.merges++;
     }
     else {
         rc = sh._adminCommand( { merge_chunks: ns, bounds: [ lowerBound, upperBound ] });
-        sh._consolidationStats.merges++;
     }
     return rc;
 }
@@ -393,13 +391,21 @@ sh.hot_shard = function() {
 
 
 sh.consolidate_ns_chunks = function(ns) {
+    let maxSize = sh._chunkSize();
+    let halfSize = maxSize / 2;
+    let coll = sh._configDB.collections.findOne({_id: ns});
+    let chunksProcessed = 0;
+    let breaks = 0;
+    let merges = 0;
 
-    var maxSize = sh._chunkSize();
-    var halfSize = maxSize / 2;
-    var coll = sh._configDB.collections.findOne({_id: ns});
-    var chunksProcessed = 0;
+    const localChunkMerge = function(a, b) {
+        let rc = sh._mergeChunks(a, b);
+        if (rc.ok === 1) {
+            merges++;
+        }
+        return rc;
+    };
 
-    sh._resetConsolidationStats();
     print("Collection: ", tojsononeline(coll))
     print("Max Size: ", sh._dataFormat(halfSize))
 
@@ -427,7 +433,8 @@ sh.consolidate_ns_chunks = function(ns) {
 
             // Stop on non-contiguous range and reset to current chunk
             if ( !sh._sameChunk(prevChunk, chunk) && !sh._contiguousChunks(prevChunk, chunk) ) {
-                sh._mergeChunks(startingChunk, prevChunk)
+                breaks++;
+                localChunkMerge(startingChunk, prevChunk);
                 startingChunk = prevChunk = chunk;
                 runningSize = 0;
             }
@@ -440,7 +447,7 @@ sh.consolidate_ns_chunks = function(ns) {
             // is already big enough so we coalesce what we have
             // until now and skip this chunk
             if ( dataSize < 0 || dataSize > halfSize ) {
-                sh._mergeChunks(startingChunk, prevChunk)
+                localChunkMerge(startingChunk, prevChunk);
                 startingChunk = undefined;
                 return;
             }
@@ -449,7 +456,7 @@ sh.consolidate_ns_chunks = function(ns) {
             // startingChunk + prevChunk < halfSize and currentChunk is big then c1+c2+c3 > maxSize?
             // 31 x 1 MiB chunks + 1 x 31 MiB = 62 MiB < maxSize
             if ( runningSize > halfSize ) {
-                sh._mergeChunks(startingChunk, prevChunk)
+                localChunkMerge(startingChunk, prevChunk);
                 startingChunk = chunk;
                 runningSize = 0;
             }
@@ -459,13 +466,13 @@ sh.consolidate_ns_chunks = function(ns) {
         });
 
         // Merge any leftovers
-        sh._mergeChunks(startingChunk, prevChunk)
+        localChunkMerge(startingChunk, prevChunk);
     });
 
     print("----------------------------------------");
     print("Chunks :", chunksProcessed);
-    print("Breaks :", sh._consolidationStats.breaks);
-    print("Merges :", sh._consolidationStats.merges);
+    print("Breaks :", breaks);
+    print("Merges :", merges);
 }
 
 var indentStr = function(indent, s) {
