@@ -1,0 +1,27 @@
+{
+  "name": "MDB_KRB5_FINDONE",
+  "version": "1.0.0",
+  "description": "MongoDB krb5 test",
+  "main": "test.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Vick Mena Jr",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/vmenajr/mongo.git"
+  },
+  "keywords": [
+    "npm"
+  ],
+  "bugs": {
+    "url": "https://github.com/vmenajr/mongo/issues"
+  },
+  "homepage": "https://github.com/vmenajr/mongo/drivers/nodejs",
+  "dependencies": {
+    "kerberos": "^1.1.2",
+    "mongodb": "^3.1.9",
+    "promise": "^8.0.2"
+  }
+}
