@@ -1,0 +1,208 @@
+" Settings file
+" Author  : Victor Mena Jr
+" Updated : 08/22/2016
+"
+set backspace=indent,eol,start
+set tags=tags,~/tags/qt4,~/tags/cpp
+set nu
+set nowrap
+set autoindent
+set smartindent
+set tabstop=4
+set shiftwidth=4
+set hls
+set visualbell
+set showmatch
+set incsearch
+set ignorecase
+set smartcase
+set scrolloff=2
+set wildmode=longest,list
+set guitablabel=%N-%t%M
+set expandtab
+set ruler
+"set clipboard=unnamed
+set paste
+set noundofile
+set nobackup
+
+
+" Pathogen load
+filetype off
+
+
+" <Leader>
+let mapleader = ","
+let maplocalleader = ","
+
+" Plugins
+"runtime ftplugin/man.vim plugin/NERD_commenter.vim
+call plug#begin('~/.vim/plugged')
+Plug 'vim-scripts/DirDiff.vim'
+Plug 'bling/vim-airline'
+Plug 'ctrlpvim/ctrlp.vim'
+Plug 'ervandew/supertab'
+Plug 'godlygeek/tabular'
+Plug 'majutsushi/tagbar'
+Plug 'mileszs/ack.vim'
+Plug 'pangloss/vim-javascript'
+Plug 'plasticboy/vim-markdown'
+Plug 'rizzatti/dash.vim'
+Plug 'scrooloose/nerdcommenter'
+Plug 'scrooloose/nerdtree'
+Plug 'scrooloose/syntastic'
+Plug 'tpope/vim-fugitive'
+Plug 'tpope/vim-surround'
+Plug 'fatih/vim-go'
+Plug 'google/yapf', { 'rtp': 'plugins/vim', 'for': 'python' }
+"Plug 'lyuts/vim-rtags'
+call plug#end()
+
+" Ensure type detection is on
+filetype plugin indent on
+
+syntax on
+set fo+=r
+
+" GUI Font
+if has("gui_running")
+	set guioptions +=f
+	set lines=44 columns=126
+	if has("gui_gtk2")
+	:set guifont=Monospace\ 12
+	elseif has("x11")
+	" Also for GTK 1
+	:set guifont=*-lucidatypewriter-medium-r-normal-*-*-180-*-*-m-*-*
+	elseif has("gui_win32")
+	:set guifont=Luxi_Mono:h12:cANSI
+	else
+	:set guifont=Monaco:h14
+	endif
+endif
+
+if executable('ag')
+    let g:ackprg='ag --vimgrep'
+endif
+
+" Tab Switching
+au TabLeave * :let g:last_tab=tabpagenr() 
+
+" NERD Commenter or local Kcomment
+let NERDMenuMode=0
+map <Leader>/ <Plug>NERDCommenterToggle
+
+" PYMODE
+" Override go-to.definition key shortcut to Ctrl-]
+let g:pymode_rope_goto_definition_bind = "<C-]>"
+
+
+" Tags
+map <C-\>	:tab split<CR>:exec("tag ".expand("<cword>"))<CR>
+map <F7>	:!ctags -RV --c++-kinds=+pl --fields=+iaS --extra=+q --tag-relative=yes --exclude=backup<CR>
+map <S-F7>	:!ctags -RV --c++-kinds=+pl --fields=+iaS --extra=+q .<CR>
+
+" Make
+map <F5> :make -B -C "../debug/%:h" "%:t:r.o"<CR><CR>
+map <F6> :make -C "../debug/%:h"<CR><CR>
+map <S-F6> :make -B -C "../debug/%:h"<CR><CR>
+
+" Key Mappings
+map <F2> :wa<CR>
+map <F3> :qa<CR>
+map <F4> :call SwitchSourceHeader()<CR>
+map <S-F4> :call TabSwitchSourceHeader()<CR>
+map <F12> :call LastTab()<CR>
+nnoremap <Leader>cd :lcd %:p:h<CR>:pwd<CR>
+vnoremap <Leader>tbl :!column -t<CR>
+vnoremap <Leader>y :call yapf#YAPF()<CR>
+
+" Tab Mappings
+nnoremap <S-Left> :tabprevious<CR>
+nnoremap <S-Right> :tabnext<CR>
+nnoremap <silent> <C-S-Left> :execute 'silent! tabmove ' . (tabpagenr()-2)<CR>
+nnoremap <silent> <C-S-Right> :execute 'silent! tabmove ' . tabpagenr()<CR>
+
+" Dash
+nmap <silent> <leader>ds <Plug>DashSearch
+nmap <silent> <leader>d  <Plug>DashGlobalSearch
+
+" General Mappings
+nnoremap <Leader>c :close<CR>
+nnoremap <Leader>h :wincmd h<CR>
+nnoremap <Leader>l :wincmd l<CR>
+nnoremap <Leader>k :wincmd k<CR>
+nnoremap <Leader>j :wincmd j<CR>
+nnoremap <Leader>v :vsplit<CR>
+nnoremap <Leader>s :split<CR>
+nnoremap <Leader>t :pop<CR>
+nnoremap <Leader>] :ts <C-R><C-W><CR>
+nnoremap <Leader>t] :tab ts <C-R><C-W><CR>
+nnoremap <Leader>tc :tabclose<CR>
+nnoremap <Leader>gf :tabf <cfile><CR>
+nnoremap <Leader>f <PageDown>
+nnoremap <Leader>b <PageUp>
+cnoremap sudow w !sudo tee % >/dev/null
+
+" Tabular
+nmap <Leader>a= :Tabularize /=<CR>
+vmap <Leader>a= :Tabularize /=<CR>
+nmap <Leader>a: :Tabularize /:\zs<CR>
+vmap <Leader>a: :Tabularize /:\zs<CR>
+
+" TagBar
+nnoremap <silent> <F9> :TagbarToggle<CR>
+
+" vim -b : edit binary using xxd-format!
+augroup Binary
+  au!
+  au BufReadPre  *.bin let &bin=1
+  au BufReadPost *.bin if &bin | %!xxd
+  au BufReadPost *.bin set ft=xxd | endif
+  au BufWritePre *.bin if &bin | %!xxd -r
+  au BufWritePre *.bin endif
+  au BufWritePost *.bin if &bin | %!xxd
+  au BufWritePost *.bin set nomod | endif
+augroup END
+
+	
+" Comment/Uncomment lines
+function! Komment( str )
+    let leader=a:str . " "
+    let tmp=substitute(getline("."), "^" . leader, "", "")
+    if getline(".") == tmp
+	call setline(".", substitute(tmp, "^", leader, ""))
+    else
+	call setline(".",tmp)
+    endif
+endfunction
+
+" Switch between source/header and viceversa
+function! SwitchSourceHeader()
+	if (expand ("%:e") == "cpp")
+		find %:t:r.h
+	else
+		find %:t:r.cpp
+	endif
+endfunction
+
+" Switch between source/header and viceversa
+function! TabSwitchSourceHeader()
+	if (expand ("%:e") == "cpp")
+		tabfind %:t:r.h
+	else
+		tabfind %:t:r.cpp
+	endif
+endfunction
+
+" Switch between the last two tabs
+function! LastTab() 
+     if !exists("g:last_tab") 
+         return 
+     endif 
+     exe "tabn" g:last_tab 
+endfunction 
+
+" Quickfix
+autocmd  QuickFixCmdPost  [^1]*  nested  cwindow
+autocmd  QuickFixCmdPost  1*     nested  lwindow
+

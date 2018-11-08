@@ -1,5 +1,28 @@
 #!/usr/bin/env bash
-hostport="ip-10-1-1-122.us-east-2.compute.internal:27017"
+usr="test@MDB.ORG"
+
+function usage() {
+    echo "Usage: $0 -h host:port <-p password>"
+    exit -1
+}
+
+while getopts ":h:p" opt; do
+  case $opt in
+    h) hostport=$OPTARG ;;
+    p) pwd=$OPTARG ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      exit 1
+      ;;
+    :)
+      echo "Option -$OPTARG requires an argument." >&2
+      exit 1
+      ;;
+  esac
+done
+
+[ -z ${hostport} ] && usage
+
 function rawurlencode () {
 	local string="${1}";
 	local strlen=${#string};
@@ -22,10 +45,8 @@ function rawurlencode () {
 	REPLY="${encoded}"
 }
 
-#usr=$(rawurlencode "vick@MDB.ORG")
-#pwd=$(rawurlencode "L,4\;?GzBs3{2LjU")
-usr="vick@MDB.ORG"
-pwd="L,4\;?GzBs3{2LjU"
+#usr=$(rawurlencode ${usr})
+#pwd=$(rawurlencode ${pwd})
 #usepwd=1
 #uri="mongodb://${usr}:${pwd}@${hostport}/test?authMechanism=GSSAPI"
 #[ -z ${usepwd} ] && uri="mongodb://${usr}@${hostport}/test?authMechanism=GSSAPI"
@@ -35,5 +56,6 @@ pwd="L,4\;?GzBs3{2LjU"
 #/c/Program\ Files/MongoDB/Server/4.0/bin/mongo $uri --eval "db.c.findOne();"
 #echo
 
-/c/Program\ Files/MongoDB/Server/4.0/bin/mongo --host $hostport -u $usr -p $pwd --authenticationDatabase \$external --authenticationMechanism GSSAPI --eval "db.c.findOne();"
+[ -z ${pwd} ] && /c/Program\ Files/MongoDB/Server/4.0/bin/mongo --host $hostport -u $usr --authenticationDatabase \$external --authenticationMechanism GSSAPI --eval "db.c.findOne();"
+[ -z ${pwd} ] || /c/Program\ Files/MongoDB/Server/4.0/bin/mongo --host $hostport -u $usr -p $pwd --authenticationDatabase \$external --authenticationMechanism GSSAPI --eval "db.c.findOne();"
 
