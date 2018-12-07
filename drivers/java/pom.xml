@@ -20,6 +20,7 @@
     <module>changestream</module>
     <module>gridfs</module>
     <module>timed_print</module>
+    <module>write_concern</module>
   </modules>
 
   <dependencies>
