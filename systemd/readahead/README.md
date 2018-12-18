@@ -29,7 +29,7 @@ Use the included easy install script to copy the files to their proper locations
 ```
 # As root
 cd /tmp
-curl -LO https://raw.githubusercontent.com/vmenajr/mongo/master/systemd/install.sh
+curl -LO https://raw.githubusercontent.com/vmenajr/mongo/master/systemd/readahead/install.sh
 chmod +x install.sh
 ./install.sh
 ```
