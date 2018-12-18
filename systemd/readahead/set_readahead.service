@@ -1,0 +1,13 @@
+[Unit]
+Description=Set readahead for mount
+Wants=mongod.service mongodb-mms-automation-agent.service
+Before=mongod.service mongodb-mms-automation-agent.service
+After=network.target tuned.service
+
+[Service]
+EnvironmentFile=-/etc/sysconfig/set_readahead
+ExecStart=/usr/local/sbin/set_readahead.sh
+Type=oneshot
+
+[Install]
+WantedBy=multi-user.target
