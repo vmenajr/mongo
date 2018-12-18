@@ -1,11 +1,11 @@
 ## Set readhead before MongoDB starts
 
-Systemd service which sets the readhead to a user supplied value (default 0) on the given LVM mounted path (default /) devices.  The service script attempts to identify the LVM devices associated with the mount point.  The service runs **before** MongoDB starts and is meant to be used in the absence of tuned.
+Systemd service which sets the readhead to a user supplied value (default 0) on the given LVM mounted path(s) (default /) devices.  The service script attempts to identify the LVM devices associated with the mount point(s).  The service runs **before** MongoDB starts and is meant to be used in the absence of tuned.
 
 **Note:** See the following sample tuned profiles for systems running with tuned enabled: https://github.com/vmenajr/mongo/tree/master/tuned
 
 ### Tested
-* Centos 7.4+
+* Centos 7.4
 
 ### Pre-requisites
 * df
@@ -21,7 +21,8 @@ The installation consists of three files:
 
 To keep the service flexible the defaults can be changed by manipulating `/etc/sysconfig/set_readahead` with the user specific values
 ```
-path=/path/to/mongodb/data
+# To specify multiple paths separate them by whitespace and surround them with double quotes
+paths="/path/to/mongodb/data /path/to/mongodb/journal"
 ra=0
 ```
 
