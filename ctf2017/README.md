@@ -18,7 +18,7 @@ Time to test drive my theory.
 
 I've included a [Vagrantfile](Vagrantfile) which stands up a VM with all the required software to make this happen.  I also added the research steps I used in coming up with the solution.
 
-You'll notice in the Vagrantfile that it also runs the exploit after it ensures ASLR is fully enabled.
+You'll notice in the Vagrantfile that it also runs the exploit ([print_flag.py](print_flag.py)) after it ensures ASLR is fully enabled.
 
 Take it for a spin with `vagrant up test`
 
