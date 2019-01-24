@@ -1,4 +1,4 @@
-A look at one of the CTF problems I solved to win the contest
+## A look at one of the CTF problems I solved to win the contest
 
 The source for the target was supplied and we were told we needed to force the target to output the flag.
 
