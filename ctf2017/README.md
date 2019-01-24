@@ -16,7 +16,7 @@ I wasn't given the address for line 54 however given the stone function addresse
 
 Time to test drive my theory.
 
-I've included a [Vagrantfile](Vagrantfile) which stands up a VM with all the required software to make this happen.  I also added the research steps I used in coming up with the solution.
+I've included a [Vagrantfile](Vagrantfile) which stands up a VM with all the required software to make this happen.  I also added the research steps I used in coming up with the solution via [bootstrap.sh](bootstrap.sh).
 
 You'll notice in the Vagrantfile that it also runs the exploit ([print_flag.py](print_flag.py)) after it ensures ASLR is fully enabled.
 
