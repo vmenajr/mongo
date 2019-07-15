@@ -171,7 +171,7 @@ sh.merge_chunks = function(ns, lowerBound, upperBound) {
         rc = { ok : getRandomInt(0,4), msg : "Debug Mode" }
     }
     else {
-        rc = sh._adminCommand( { merge_chunks: ns, bounds: [ lowerBound, upperBound ] });
+        rc = sh._adminCommand( { mergeChunks: ns, bounds: [ lowerBound, upperBound ] });
     }
     return rc;
 }
