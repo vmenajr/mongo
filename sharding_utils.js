@@ -719,7 +719,7 @@ sh.split_to_max = function(ns) {
             // such that we process both of these chunks again (current
             // and newly born)
             itr.close();
-            query = {_id: { $gte: chunk._id} };
+            query = {_id: { $gte: chunk._id}, "ns": ns };
             itr = sh._configDB.chunks.find(query).sort({_id:1});
             break;
         }
