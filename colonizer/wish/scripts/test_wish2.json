@@ -1,0 +1,22 @@
+{
+    "clients": [ ],
+    "cluster_name": "xlarge-32-3x3", 
+    "config_server_type": "CSRS", 
+    "configs": [ ], 
+    "dbpath": "/data", 
+    "mongos": [ ], 
+    "monitoring_agent": {
+        "hostname": ""
+    }, 
+    "shards": [ ], 
+    "storage_engine": "wiredTiger", 
+    "url_options": "/?readPreference=nearest&connectTimeoutMS=20000&socketTimeoutMS=20000&maxPoolSize=10000&waitQueueMultiple=10&waitQueueTimeoutMS=20000",
+    "workloads": [ 
+        { "readproportion" : 1, "updateproportion": 0, "scanproportion": 0, "insertproportion": 0},
+        { "readproportion" : 0.9, "updateproportion": 0.1, "scanproportion": 0, "insertproportion": 0},
+        { "readproportion" : 0.8, "updateproportion": 0.2, "scanproportion": 0, "insertproportion": 0},
+        { "readproportion" : 0.5, "updateproportion": 0.5, "scanproportion": 0, "insertproportion": 0},
+        { "readproportion" : 0, "updateproportion": 1, "scanproportion": 0, "insertproportion": 0}
+    ],
+    "threads" : [ 4, 8, 16, 32, 64, 128 ]
+}

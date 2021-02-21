@@ -1,0 +1,39 @@
+---
+# This Playbook would deploy the whole mongodb cluster with replication and sharding.
+
+- hosts: all
+  become: yes
+  become_method: sudo
+  roles:
+      - role: common
+
+- hosts: clients
+  become: yes
+  become_method: sudo
+  roles:
+      - role: clients
+
+- hosts: mongos
+  become: yes
+  become_method: sudo
+  roles:
+      - role: mongos
+
+- hosts: configs
+  become: yes
+  become_method: sudo
+  roles:
+      - role: configs
+
+- hosts: shards
+  become: yes
+  become_method: sudo
+  roles:
+      - role: shards
+
+#- hosts: mongo_servers
+  #become: yes
+  #become_method: sudo
+  #tasks:
+      #- include: roles/mongod/tasks/shards.yml
+

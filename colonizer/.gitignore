@@ -1,0 +1,13 @@
+.terraform/
+site.retry
+terraform.tfstate.backup
+build.log
+
+cluster.json
+inventory.*
+inventory/
+
+*.vim
+
+servers_*.json
+

@@ -1,0 +1,48 @@
+{
+    "clients": [ { "hostname": "ip-172-31-6-228.ap-southeast-2.compute.internal" } ], 
+    "cluster_name": "wt-32-3x3-xlarge", 
+    "config_server_type": "CSRS", 
+    "configs": [
+        { "hostname": "ip-172-31-1-221.ap-southeast-2.compute.internal", "port": "27000", "priority": 1, "role": "config"}, 
+        { "hostname": "ip-172-31-1-221.ap-southeast-2.compute.internal", "port": "27001", "priority": 1, "role": "config" }, 
+        { "hostname": "ip-172-31-1-221.ap-southeast-2.compute.internal", "port": "27002", "priority": 1, "role": "config" }
+    ], 
+    "dbpath": "/data", 
+    "mongos": [
+        { "hostname": "ip-172-31-1-221.ap-southeast-2.compute.internal", "port": "27020", "role": "mongos" }, 
+        { "hostname": "ip-172-31-1-221.ap-southeast-2.compute.internal", "port": "27021", "role": "mongos" }, 
+        { "hostname": "ip-172-31-1-221.ap-southeast-2.compute.internal", "port": "27022", "role": "mongos" }
+    ], 
+    "monitoring_agent": {
+        "hostname": "ip-172-31-14-133.ap-southeast-2.compute.internal"
+    }, 
+    "password": "dba", 
+    "shards": [
+        [
+            { "hostname": "ip-172-31-1-221.ap-southeast-2.compute.internal", "port": "27010", "priority": 5, "role": "primary" }, 
+            { "hostname": "ip-172-31-1-221.ap-southeast-2.compute.internal", "port": "27011", "priority": 1, "role": "secondary" }, 
+            { "hostname": "ip-172-31-1-221.ap-southeast-2.compute.internal", "port": "27012", "priority": 1, "role": "secondary" }
+        ], 
+        [
+            { "hostname": "ip-172-31-1-221.ap-southeast-2.compute.internal", "port": "27013", "role": "secondary" }, 
+            { "hostname": "ip-172-31-1-221.ap-southeast-2.compute.internal", "port": "27014", "priority": 5, "role": "primary" }, 
+            { "hostname": "ip-172-31-1-221.ap-southeast-2.compute.internal", "port": "27015", "priority": 1, "role": "secondary" }
+        ], 
+        [
+            { "hostname": "ip-172-31-1-221.ap-southeast-2.compute.internal", "port": "27016", "priority": 5, "role": "primary" }, 
+            { "hostname": "ip-172-31-1-221.ap-southeast-2.compute.internal", "port": "27017", "priority": 1, "role": "secondary" }, 
+            { "hostname": "ip-172-31-1-221.ap-southeast-2.compute.internal", "port": "27018", "priority": 1, "role": "secondary" }
+        ]
+    ], 
+    "storage_engine": "wiredTiger", 
+    "url_options": "/?connectTimeoutMS=20000&socketTimeoutMS=20000&maxPoolSize=10000&waitQueueMultiple=10&waitQueueTimeoutMS=20000", 
+    "user": "dba", 
+    "workloads": [ 
+        { "readproportion" : 1, "updateproportion": 0, "scanproportion": 0, "insertproportion": 0},
+        { "readproportion" : 0.9, "updateproportion": 0.1, "scanproportion": 0, "insertproportion": 0},
+        { "readproportion" : 0.8, "updateproportion": 0.2, "scanproportion": 0, "insertproportion": 0},
+        { "readproportion" : 0.5, "updateproportion": 0.5, "scanproportion": 0, "insertproportion": 0},
+        { "readproportion" : 0, "updateproportion": 1, "scanproportion": 0, "insertproportion": 0}
+    ],
+    "threads" : [ 2, 4, 8, 16, 32, 64, 96, 128, 256, 512, 1024 ]
+}

@@ -1,0 +1,33 @@
+---
+- name: Create directory for tuned
+  file: 
+    path: /etc/tuned/mongod
+    state: directory
+    mode: 0755
+  when: ansible_os_family == 'RedHat'
+
+- name: Copy tuned.conf
+  copy: src=tuned.conf dest=/etc/tuned/mongod/tuned.conf
+  when: ansible_os_family == 'RedHat'
+
+- name: Set new tuned to put readahead to 0
+  command: tuned-adm profile mongod
+  when: ansible_os_family == 'RedHat' and (not ansible_distribution == 'Amazon')
+
+- name: Create file for readahead (85-ebs.rules)
+  copy:
+    src: 85-ebs.rules
+    dest: /etc/udev/rules.d/85-ebs.rules
+  when: ansible_distribution == 'Amazon'
+
+- name: Copy rc.local script
+  copy: src=ubuntu-rc.local dest=/etc/rc.local
+  when: ansible_os_family == 'Debian'
+
+- name: Set Readahead to 0 on Ubuntu
+  lineinfile:
+    path: /etc/rc.local
+    regexp: 'exit 0'
+    line: 'blockdev --setra 0 /dev/xvdb'
+    insertbefore: true
+  when: ansible_os_family == 'Debian'

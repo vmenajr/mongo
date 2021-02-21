@@ -1,0 +1,126 @@
+{
+	"variables": {
+		"aws_access_key": "{{env `AWS_ACCESS_KEY_ID`}}",
+		"aws_secret_key": "{{env `AWS_SECRET_ACCESS_KEY`}}",
+		"aws_region":     "us-east-2",
+		"ami_regions":    "us-west-1,ap-southeast-2",
+		"custom_ami_name": "prod_ready_mongodb_{{timestamp}}",
+		"disk_size": "100",
+		"swap_size": "4",
+		"creator": "{{env `USER`}}",
+		"keep_running": "false"
+	},
+	"builders": [{
+			"type": "amazon-ebs",
+			"name": "amazon-ebs-aml",
+			"access_key": "{{user `aws_access_key`}}",
+			"secret_key": "{{user `aws_secret_key`}}",
+			"ami_name": "{{user `custom_ami_name`}}_aml",
+			"source_ami": "ami-4191b524",
+			"region": "{{user `aws_region`}}",
+			"instance_type": "t2.2xlarge",
+			"ssh_username": "ec2-user",
+			"launch_block_device_mappings": [{
+					"device_name": "/dev/xvdb",
+					"delete_on_termination": true,
+					"volume_size": "{{user `disk_size`}}"
+				},
+				{
+					"device_name": "/dev/xvdc",
+					"delete_on_termination": true,
+					"volume_size": "{{user `swap_size`}}"
+				}
+			]
+		},
+		{
+			"type": "amazon-ebs",
+			"name": "amazon-ebs-rhel7",
+			"access_key": "{{user `aws_access_key`}}",
+			"secret_key": "{{user `aws_secret_key`}}",
+			"ami_name": "{{user `custom_ami_name`}}_rhel7",
+			"source_ami": "ami-0932686c",
+			"region": "{{user `aws_region`}}",
+			"instance_type": "t2.2xlarge",
+			"ssh_username": "ec2-user",
+			"launch_block_device_mappings": [{
+					"device_name": "/dev/xvdb",
+					"delete_on_termination": true,
+					"volume_size": "{{user `disk_size`}}"
+				},
+				{
+					"device_name": "/dev/xvdc",
+					"delete_on_termination": true,
+					"volume_size": "{{user `swap_size`}}"
+				}
+			]
+		},
+		{
+			"type": "amazon-ebs",
+			"name": "amazon-ebs-centos7",
+			"access_key": "{{user `aws_access_key`}}",
+			"secret_key": "{{user `aws_secret_key`}}",
+			"ami_name": "{{user `custom_ami_name`}}_centos7",
+			"source_ami": "ami-0cfcdb69",
+			"region": "{{user `aws_region`}}",
+			"instance_type": "t2.2xlarge",
+			"ssh_username": "centos",
+			"launch_block_device_mappings": [{
+					"device_name": "/dev/xvdb",
+					"delete_on_termination": true,
+					"volume_size": "{{user `disk_size`}}"
+				},
+				{
+					"device_name": "/dev/xvdc",
+					"delete_on_termination": true,
+					"volume_size": "{{user `swap_size`}}"
+				}
+			]
+		},
+		{
+			"type": "amazon-ebs",
+			"name": "amazon-ebs-ubuntu-Xenial",
+			"access_key": "{{user `aws_access_key`}}",
+			"secret_key": "{{user `aws_secret_key`}}",
+			"ami_name": "{{user `custom_ami_name`}}_ubuntu_Xenial",
+			"disable_stop_instance": "{{user `keep_running`}}",
+			"source_ami_filter": {
+				"filters": {
+					"virtualization-type": "hvm",
+					"name": "*ubuntu-xenial-16.04-amd64-server-*",
+					"root-device-type": "ebs"
+				},
+				"owners": ["099720109477"],
+				"most_recent": true
+			},
+			"region": "{{user `aws_region`}}",
+			"ami_regions": "{{user `ami_regions`}}",
+			"instance_type": "t2.2xlarge",
+			"ssh_username": "ubuntu",
+			"tags" : {
+				"Name": "mdb-ubuntu-16.04-amd64-server",
+				"Created-by" : "{{user `creator`}}"
+			},
+			"run_tags" : {
+				"Name": "Packer_builder_{{timestamp}}_ubuntu_Xenial",
+				"Created-by" : "{{user `creator`}}"
+			},
+			"run_volume_tags" : {
+				"Name": "Packer_builder_{{timestamp}}_ubuntu_Xenial",
+				"Created-by" : "{{user `creator`}}"
+			},
+			"snapshot_tags" : {
+				"Name": "Packer_builder_{{timestamp}}_ubuntu_Xenial",
+				"Created-by" : "{{user `creator`}}"
+			}
+		}
+	],
+	"provisioners": [{
+			"type": "shell",
+			"script": "../scripts/ubuntu_install_python.sh"
+		},
+		{
+			"type": "ansible",
+			"playbook_file": "playbooks/site.yml"
+		}
+	]
+}

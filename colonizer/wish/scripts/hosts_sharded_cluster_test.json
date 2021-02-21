@@ -1,0 +1,24 @@
+{
+    "clients": [ { "hostname": "ip-172-31-6-228.ap-southeast-2.compute.internal" } ], 
+    "cluster_name": "wt-32-3x3-xlarge", 
+    "config_server_type": "CSRS", 
+    "configs": [
+    ], 
+    "dbpath": "/data", 
+    "mongos": [
+    ], 
+    "monitoring_agent": {
+        "hostname": "ip-172-31-14-133.ap-southeast-2.compute.internal"
+    }, 
+    "password": "dba", 
+    "shards": [
+    ], 
+    "storage_engine": "wiredTiger", 
+    "url_options": "/?connectTimeoutMS=20000&socketTimeoutMS=20000&maxPoolSize=10000&waitQueueMultiple=10&waitQueueTimeoutMS=20000", 
+    "user": "dba", 
+    "workloads": [ 
+        { "readproportion" : 0.9, "updateproportion": 0.1, "scanproportion": 0, "insertproportion": 0},
+        { "readproportion" : 0.8, "updateproportion": 0.2, "scanproportion": 0, "insertproportion": 0}
+    ],
+    "threads" : [ 2, 4 ]
+}

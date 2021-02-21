@@ -1,0 +1,13 @@
+---
+- name: restart mongodb
+  service: "name=mongod state=restarted"
+
+- name: set sysctl
+  command: sysctl -p
+
+- name: Update apt cache
+  apt:
+      update_cache: yes
+  listen: "update apt"
+  when: ansible_os_family == 'Debian'
+

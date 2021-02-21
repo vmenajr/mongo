@@ -1,0 +1,22 @@
+127.0.0.1 localhost
+
+# Clients
+{% for host in groups['clients'] %}
+{{ hostvars[host]['ansible_' + iface].ipv4.address }}  {{ host }}
+{% endfor %}
+
+# Mongos
+{% for host in groups['mongos'] %}
+{{ hostvars[host]['ansible_' + iface].ipv4.address }}  {{ host }}
+{% endfor %}
+
+# Configs
+{% for host in groups['configs'] %}
+{{ hostvars[host]['ansible_' + iface].ipv4.address }}  {{ host }}
+{% endfor %}
+
+# Shards
+{% for host in groups['shards'] %}
+{{ hostvars[host]['ansible_' + iface].ipv4.address }}  {{ host }}
+{% endfor %}
+

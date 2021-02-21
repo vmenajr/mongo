@@ -1,0 +1,116 @@
+---
+- name: If Amazon Linux, install xfsprogs
+  yum: name=xfsprogs state=installed
+  when: ansible_distribution == 'Amazon'
+
+- name: Check existing volumes
+  command: blockdev --report
+  register: blockdev
+
+- debug: msg="{{blockdev.stdout}}"
+
+- name: Set TCP keep alive to 120
+  lineinfile:
+    path: /etc/sysctl.conf
+    line: 'net.ipv4.tcp_keepalive_time = 120'
+  notify: 'set sysctl'
+
+- name: Set TCP keep alive to 120
+  lineinfile:
+    path: /etc/sysctl.conf
+    line: 'kernel.pid_max = 64000'
+  notify: 'set sysctl'
+
+- name: Copy disable hugepages init.d script
+  copy: src=disable-transparent-hugepages dest=/etc/init.d/disable-transparent-hugepages
+
+- name: Make disable-transparent-hugepages script executable
+  file:
+    path: /etc/init.d/disable-transparent-hugepages
+    mode: 0755
+
+- name: Ensure disable-transparent-hugepages runs on boot
+  command: chkconfig --add disable-transparent-hugepages
+  when: ansible_os_family == 'RedHat'
+
+- name: Ensure disable-transparent-hugepages runs on boot
+  command: update-rc.d disable-transparent-hugepages defaults
+  when: ansible_os_family == 'Debian'
+
+- name: Copy ulimit file
+  copy: src=99-mongodb-nproc.conf dest=/etc/security/limits.d/99-mongodb-nproc.conf
+
+- name: Transfer repo file
+  copy: src={{item}} dest=/etc/yum.repos.d/mongodb.repo
+  with_first_found:
+    - files:
+       - "{{ansible_distribution}}-mongodb.repo"
+       - mongodb-rhel.repo
+  when: ansible_os_family == 'RedHat'
+
+- name: Import the MongoDB 3.4 public key used by the package management system
+  apt_key: 
+    keyserver: hkp://keyserver.ubuntu.com
+    id: "0C49F3730359A14518585931BC711F9BA15703C6"
+  when: ansible_os_family == 'Debian'
+
+- name: Import the MongoDB 3.2 public key used by the package management system
+  apt_key: 
+    keyserver: hkp://keyserver.ubuntu.com
+    id: "EA312927"
+  when: ansible_os_family == 'Debian'
+
+- name: Transfer mongodb enterprise Repo List (Ubuntu)
+  template: src=mongodb-enterprise.j2 dest=/etc/apt/sources.list.d/mongodb-enterprise.list
+  vars:
+    codename: "{{ ansible_lsb.codename }}"
+  when: ansible_os_family == 'Debian'
+  notify: update apt
+
+- name: Transfer mongodb community Repo List (Ubuntu)
+  template: src=mongodb-org.j2 dest=/etc/apt/sources.list.d/mongodb-org.list
+  vars:
+    codename: "{{ ansible_lsb.codename }}"
+  when: ansible_os_family == 'Debian'
+  notify: update apt
+  
+- name: Download m
+  command: git clone git://github.com/aheckmann/m.git
+  args:
+    chdir: /tmp
+
+- name: Install m
+  command: make install
+  args:
+    chdir: /tmp/m
+
+
+# - name: Install MongoDB 3.4.X
+#  yum: name=mongodb-enterprise state=installed
+#  when: ansible_os_family == 'RedHat'
+
+#- name: Transfer mongod.conf file
+#  copy: 
+#    src: mongod.conf 
+#    dest: /etc/mongod.conf 
+#    force: yes
+
+#- name: Create /data/mongo directory
+#  file:
+#    path: /data/mongo
+#    state: directory
+#    mode: 0755
+#    owner: mongod
+#    group: mongod
+
+#- name: Ensure Mon#goDB is Running and enabled
+#  service:
+#    name: "mongod"
+#    state: started
+#    enabled: yes
+#  notify: 'restart mongodb'
+
+
+
+
+

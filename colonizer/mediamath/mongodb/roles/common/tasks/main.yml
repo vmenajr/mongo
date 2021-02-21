@@ -1,0 +1,25 @@
+---
+# This Playbook runs all the common plays in the deployment
+
+- name: Create the hosts file for all machines
+  template: src=hosts.j2 dest=/etc/hosts
+  tags:
+      - etc_hosts
+
+#- name: Install MongoDB Enterprise
+  #apt: 
+    #name: mongodb-enterprise = '{{ mongodb_version }}'
+    #state: present
+  #when: ansible_os_family == 'Debian'
+
+            
+- name: Install MongoDB using m
+  shell: echo y | sudo /usr/local/bin/m {{mongodb_version}}
+  tags:
+      - install_mongodb
+
+- name: Install the latest pymongo package
+  pip: name=pymongo state=latest use_mirrors=no
+  tags:
+      - install_mongodb
+

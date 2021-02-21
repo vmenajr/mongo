@@ -1,0 +1,16 @@
+fieldcount=8
+fieldlength=512
+recordcount=4000000
+operationcount=999999999
+maxexecutiontime=300
+workload=com.yahoo.ycsb.workloads.CoreWorkload
+
+readallfields=false
+
+readproportion=.75
+updateproportion=.25
+scanproportion=0
+insertproportion=0
+
+requestdistribution=uniform
+threadcount=16

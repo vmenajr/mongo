@@ -1,0 +1,16 @@
+[clients]
+client0 ansible_host=ec2-13-58-250-163.us-east-2.compute.amazonaws.com
+
+[mongos]
+mongos0 ansible_host=ec2-18-220-8-168.us-east-2.compute.amazonaws.com
+
+[configs]
+config0 ansible_host=ec2-52-15-124-65.us-east-2.compute.amazonaws.com
+config1 ansible_host=ec2-52-14-46-197.us-east-2.compute.amazonaws.com
+config2 ansible_host=ec2-13-59-184-121.us-east-2.compute.amazonaws.com
+
+[shards]
+shard0-0 ansible_host=ec2-18-220-22-238.us-east-2.compute.amazonaws.com
+shard0-1 ansible_host=ec2-13-58-58-210.us-east-2.compute.amazonaws.com
+shard0-2 ansible_host=ec2-13-59-188-220.us-east-2.compute.amazonaws.com
+

@@ -1,0 +1,14 @@
+---
+
+- name: Install MongoDB
+  hosts: all
+  become: yes
+  become_method: sudo
+
+  roles:
+    - common
+    - ntp
+    - readahead
+    - mongodb
+    - java8
+

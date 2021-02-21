@@ -1,0 +1,130 @@
+---
+- name: update yum cache
+  command: yum makecache fast
+  when: ansible_os_family == 'RedHat'
+
+- name: Update packages
+  command: yum update -y
+  when: ansible_os_family == 'RedHat'
+
+- name: install the 'Development tools' package group
+  command: yum groupinstall -y "Development tools"
+  when: ansible_os_family == 'RedHat'
+
+- name: Update apt
+  apt: update_cache=yes cache_valid_time=3600
+  when: ansible_os_family == 'Debian'
+
+- name: Upgrade apt
+  apt: upgrade=dist
+  when: ansible_os_family == 'Debian'
+
+- name: Install default packages
+  yum: 
+    name: "{{item}}"
+    state: present
+  with_items: 
+    - "git"
+  when: ansible_os_family == 'RedHat'
+
+- name: Install default packages
+  apt: 
+    name: "{{item}}"
+    state: present
+  with_items: 
+    - "git"
+    - "make"
+    - "sysstat"
+    - "tree"
+    - "htop"
+    - "linux-tools-common"
+    - "python-pip"
+    - "python-dev"
+    - "libssl-dev"
+    - "language-pack-en"
+    - "gdb"
+    - "jq"
+    - "silversearcher-ag"
+    - "ascii"
+    - "ngrep"
+    - "tcpflow"
+  when: ansible_os_family == 'Debian'
+
+- name: Install pip packages
+  pip: 
+    name: "{{item}}"
+    state: latest
+  with_items: 
+    - "pip"
+    - "pymongo"
+    - "paramiko"
+    - "futures"
+    - "pyyaml"
+  when: ansible_os_family == 'Debian'
+
+- name: Disable SELINUX
+  selinux:
+      policy: targeted
+      state: permissive
+  when: ansible_os_family == 'RedHat' and (not ansible_distribution == 'Amazon')
+
+
+#- name: Install Epel-release
+#  command: yum install -y epel-release
+#  when: ansible_os_family == 'RedHat'
+
+- name: Create Colonizer user
+  user:
+    name: colonizer
+    shell: /bin/bash
+    groups: wheel
+    generate_ssh_key: yes
+    append: yes
+  when: ansible_os_family == 'RedHat'
+
+- name: Create Colonizer user
+  user:
+    name: colonizer
+    shell: /bin/bash
+    groups: sudo
+    generate_ssh_key: yes
+    append: yes
+  when: ansible_os_family == 'Debian'
+
+- name: Set colonizer as default user for cloud-init
+  lineinfile:
+    path: /etc/cloud/cloud.cfg
+    regexp: '^(.*name:.)ubuntu'
+    line: '\1colonizer'
+    backrefs: yes
+
+- name: Copy screenrc into ami
+  copy:
+      src: screenrc
+      dest: ~colonizer/.screenrc
+      owner: colonizer
+      group: colonizer
+      mode: "u=rw,g=r,o=r"
+
+- name: Download & extract YCSB
+  unarchive:
+      src: https://github.com/brianfrankcooper/YCSB/releases/download/0.12.0/ycsb-0.12.0.tar.gz
+      dest: /home/colonizer
+      remote_src: True
+      owner: colonizer
+      group: colonizer
+
+- name: Fix YCSB Permissions
+  file:
+      path: /home/colonizer/ycsb-0.12.0
+      owner: colonizer
+      group: colonizer
+      recurse: yes
+
+- name: Enable ptrace
+  replace:
+      path: /etc/sysctl.d/10-ptrace.conf
+      regexp: '^kernel.yama.ptrace_scope\s+=\s+1'
+      replace: 'kernel.yama.ptrace_scope = 0'
+      backup: no
+

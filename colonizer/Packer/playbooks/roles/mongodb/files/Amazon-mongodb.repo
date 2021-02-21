@@ -1,0 +1,29 @@
+[mongodb-enterprise-3.4]
+name=MongoDB Enterprise Repository 3.4
+baseurl=https://repo.mongodb.com/yum/amazon/2013.03/mongodb-enterprise/3.4/$basearch/
+gpgcheck=1
+enabled=1
+gpgkey=https://www.mongodb.org/static/pgp/server-3.4.asc
+
+[mongodb-enterprise-3.2]
+name=MongoDB Enterprise Repository 3.2
+baseurl=https://repo.mongodb.com/yum/amazon/2013.03/mongodb-enterprise/3.2/$basearch/
+gpgcheck=1
+enabled=1
+gpgkey=https://www.mongodb.org/static/pgp/server-3.2.asc
+
+[mongodb-org-3.4]
+name=MongoDB Repository 3.4
+baseurl=https://repo.mongodb.org/yum/amazon/2013.03/mongodb-org/3.4/x86_64/
+gpgcheck=1
+enabled=1
+gpgkey=https://www.mongodb.org/static/pgp/server-3.4.asc
+
+[mongodb-org-3.2]
+name=MongoDB Repository 3.2
+baseurl=https://repo.mongodb.org/yum/amazon/2013.03/mongodb-org/3.2/x86_64/
+gpgcheck=1
+enabled=1
+gpgkey=https://www.mongodb.org/static/pgp/server-3.2.asc
+
+
