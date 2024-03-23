@@ -6,7 +6,7 @@ Now, for obvious reasons, the Atlas Search Index files are not available to me. 
 ## Setup
 First, we need to spin up our local test
 ```console
-atlas deployments setup --type local
+atlas deployments setup test --type local
 ```
 
 Make sure it's up
