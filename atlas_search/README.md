@@ -1,24 +1,25 @@
 # Atlas Search Index File
 Recently, I found myself trying to understand how an autocomple index works. For example: how do the analyzer and tokenizer interact. I decided to go to the source: The index files.
 
-Now, for obvious reasons, the Atlas Search Index files are not available to me.  But never fear: [Atlas Local Development is here!](https://www.mongodb.com/blog/post/introducing-local-development-experience-atlas-search-vector-search-atlas-cli)
-
-That blog post explains everything you need to get started so I won't go over it again. Instead, let's get to the good stuff.
+Now, for obvious reasons, the Atlas Search Index files are not available to me.  But never fear: [Atlas Local Development is here!](https://www.mongodb.com/blog/post/introducing-local-development-experience-atlas-search-vector-search-atlas-cli). The blog post explains everything you need to get started so I won't go over it again. Instead, let's get to the good stuff.
 
 ## Setup
-- First, we need to spin up our local test
+First, we need to spin up our local test
 ```console
 atlas deployments setup --type local
 ```
-- Make sure it's up
+
+Make sure it's up
 ```console
 atlas deployments list && podman ps -a
 ```
-- We need to setup the database with some data. Simply running mongosh should connect us.
+
+We need to seed the database with some data. The local deployment defaults make it very easy.
 ```console
 mongosh
 ```
-- And we're just going to add some text to collection `c` in the default database `test`
+
+And we're just going to add some text to collection `c` in the default database `test`
 ```console
 db.c.insertMany([
   { "name": "The Matrix Revolutions" },
@@ -27,7 +28,8 @@ db.c.insertMany([
   { "name": "No gracias, soy alergico a los crustaceos" }
 ])
 ```
-- Finally, we need to build an index.  The index will use the name "default" since we didn't specify it.
+
+Finally, we need to build an index.  The index will use the name "default" since we didn't specify it.
 ```console
 db.c.createSearchIndex({
     "mappings": {
@@ -45,7 +47,8 @@ db.c.createSearchIndex({
     }
 })
 ```
-- I guess we should make sure it's ready
+
+I guess we should make sure it's ready
 ```console
 db.c.getSearchIndexes()
 [
@@ -74,6 +77,7 @@ db.c.getSearchIndexes()
   }
 ]
 ```
+
 ## Where are the files?
 With that out of the way let's inspect what is running locally. Now, because I'm after the index files I'll use a format that focuses on what's interesting.
 ```console
@@ -81,6 +85,7 @@ podman ps --format "{{.Names}} {{.Mounts}}"
 mongod-test [/data/configdb /data/db]
 mongot-test [/var/lib/mongot/metrics /var/lib/mongot]
 ```
+
 OK, looks like our man is `mongot-test` and we're most likely interested in `/var/lib/mongot`.  Now let's figure out where this mount lives
 ```console
 podman inspect mongot-test | jq '.[].Mounts.[] | {Type:.Type,Name:.Name,Mount:.Destination}'
@@ -95,14 +100,17 @@ podman inspect mongot-test | jq '.[].Mounts.[] | {Type:.Type,Name:.Name,Mount:.D
   "Mount": "/var/lib/mongot"
 }
 ```
-It's a volume. This is great because we can use a different container to mount that volume read-only without having to disrupt the existing deployment.  I'll be using a pylucene container (more on that later).  Big shout out to [coady](https://github.com/coady/lupyne) who builds and maintains those on docker hub.
+
+It's a volume. This is great because we can use a different container to mount that volume read-only without having to disrupt the existing deployment.  I'll be using a pylucene container (more on that later). I'm going to run it alongside the atlas search local deployment and "borrow" it's data volume :smirk:
 ```console
 podman run --name pylucene --rm --interactive --tty --volume $(pwd):/usr/src --volumes-from=mongot-test:ro docker.io/coady/pylucene bash
 ```
+
 The container is a bit thin so let's add a few handy tools
 ```console
 root@c93381d609f8:/usr/src# apt -y install vim tree ripgrep
 ```
+
 and now let's see if the data files are present
 ```console
 tree /var/lib/mongot/
@@ -120,7 +128,8 @@ tree /var/lib/mongot/
 
 4 directories, 7 files
 ```
-Looks promising.
+
+That looks promising.
 
 ## Brute force
 Now for the hammer.  We know we added certain sentences and we specified edgeGram(3,5) so let's see if we can find `matri` based on "The Matrix Revolutions"
@@ -128,21 +137,25 @@ Now for the hammer.  We know we added certain sentences and we specified edgeGra
 root@487c42c5ebf3:/var/lib/mongot# rg --binary matri
 65fef63ad01ab701c9b08a78_f5_u0_a0/_0.cfs: binary file matches (found "\0" byte around offset 25)
 ```
+
 Looks like it's in there. Let's pull all the strings from that file and zoom in on that hit.
 ```console
 root@487c42c5ebf3:/var/lib/mongot# strings -n 3 65fef63ad01ab701c9b08a78_f5_u0_a0/_0.cfs | grep matri
 fleflewflew gragracgraciloslos los cmanman man amatmatrmatrinesnestnono no gno groneone one foveoverover panpanapanamplaplanplan revrevorevolsoysoy soy athethe the cthe mV
 ```
+
 Well that looks like...something :)
 Notice I used the `-n 3` parameter to strings.  By default it will look for sequences >=4 and since we used min 3 on edgeGram(3,5) I scoped it lower.  From that mish mash of text it does look like we have tokens for 'Matrix'
 ```console
 matmatrmatri -> mat,matr,matri
 ```
+
 But where's the rest of the phrase? Probably somewhere else on the file since tokens are deduplicated.
 
 At this point I got tired of manually peeking into the binary and decided to try some scripting.
 
 ## Pylucene
+Big shout out to @coady who builds and maintains a docker image that makes this a snap: `docker pull coady/pylucene`.
 Thanks to the existing docker container I managed to quickly get up and running with this python library and here's what I came up with
 ```python
 import sys
@@ -210,3 +223,6 @@ Given: 'The Matrix Revolutions'
 ['mat', 'matr', 'matri', 'rev', 'revo', 'revol', 'the', 'the ', 'the m']
 ```
 Not bad and a whole lot easier than digging around the binary data.
+
+## Dig deeper
+TBD
